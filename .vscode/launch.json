@@ -1,0 +1,58 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: System Zintegrowany",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/mfg_integrated.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "Python: Tylko Zamówienia (Faza 1)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/mfg_app.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "Python: Agent Outlook (Debug)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/outlook_agent.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["--debug"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DEBUG": "true"
+            },
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "Python: Attach (Remote Debug)",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ]
+        }
+    ]
+}

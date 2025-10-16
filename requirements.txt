@@ -1,0 +1,36 @@
+# Requirements for Manufacturing Orders Management System
+# Python 3.11+
+
+# GUI Framework
+customtkinter>=5.2.0
+Pillow>=10.0.0
+
+# Database
+supabase>=2.3.0
+
+# Date picker widget
+tkcalendar>=1.6.1
+
+# Data processing & exports
+pandas>=2.0.0
+openpyxl>=3.1.0
+python-docx>=1.1.0
+reportlab>=4.0.0
+
+# Charts & visualization
+matplotlib>=3.7.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Additional utilities
+numpy>=1.24.0
+
+# CAD file processing
+ezdxf>=1.1.0
+
+# 3D file processing (optional - for STEP/IGES support)
+# pythonocc-core>=7.7.0
+# Note: pythonocc-core is challenging to install on Windows
+# Consider using conda: conda install -c conda-forge pythonocc-core
+# For now, the system will work without it (with placeholder images for 3D files)

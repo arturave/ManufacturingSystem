@@ -1,0 +1,136 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "manufacturing-system"
+version = "1.1.0"
+description = "System Zarządzania Produkcją - Laser/Prasa Krawędziowa"
+authors = [
+    {name = "Production IT Team", email = "support@production.local"}
+]
+readme = "README.md"
+license = {text = "Proprietary"}
+requires-python = ">=3.11"
+keywords = ["manufacturing", "production", "laser", "press", "erp", "management"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Manufacturing",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+]
+
+dependencies = [
+    "customtkinter>=5.2.0",
+    "Pillow>=10.0.0",
+    "supabase>=2.3.0",
+    "tkcalendar>=1.6.1",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "python-docx>=1.1.0",
+    "reportlab>=4.0.0",
+    "matplotlib>=3.7.0",
+    "python-dotenv>=1.0.0",
+    "numpy>=1.24.0"
+]
+
+[project.optional-dependencies]
+outlook = ["pywin32>=305"]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.7.0",
+    "pylint>=2.17.0",
+    "mypy>=1.4.0",
+    "flake8>=6.0.0"
+]
+
+[project.scripts]
+mfg-system = "mfg_integrated:main"
+
+[project.urls]
+Homepage = "https://production.local"
+Documentation = "https://production.local/docs"
+Repository = "https://github.com/production/manufacturing-system"
+Issues = "https://github.com/production/manufacturing-system/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*.py"]
+exclude = ["tests*", "docs*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.sql", "*.md", "*.txt", "*.bat", ".env.example"]
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.pylint.messages-control]
+max-line-length = 120
+disable = [
+    "C0111",  # missing-docstring
+    "C0103",  # invalid-name
+    "R0903",  # too-few-public-methods
+    "W0703",  # broad-except
+    "E1101",  # no-member (false positives with tkinter)
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra -q --strict-markers"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = [
+    "tests/*",
+    "docs/*",
+    ".venv/*"
+]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*.pyc",
+    ".venv/*",
+    "setup.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:"
+]

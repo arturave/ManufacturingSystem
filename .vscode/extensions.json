@@ -1,0 +1,23 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "ms-python.pylint",
+        "njpwerner.autodocstring",
+        "wholroyd.jinja",
+        "ms-vscode.powershell",
+        "yzhang.markdown-all-in-one",
+        "davidanson.vscode-markdownlint",
+        "gruntfuggly.todo-tree",
+        "usernamehw.errorlens",
+        "eamodio.gitlens",
+        "donjayamanne.githistory",
+        "visualstudioexptteam.vscodeintellicode",
+        "christian-kohler.path-intellisense",
+        "formulahendry.code-runner",
+        "mechatroner.rainbow-csv",
+        "grapecity.gc-excelviewer",
+        "dotenv.dotenv-vscode"
+    ]
+}

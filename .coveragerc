@@ -1,0 +1,36 @@
+[run]
+source = .
+omit = 
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */.venv/*
+    */venv/*
+    */env/*
+    setup.py
+    */site-packages/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstract
+    @abstractmethod
+
+ignore_errors = True
+precision = 2
+show_missing = True
+skip_covered = False
+skip_empty = True
+
+[html]
+directory = htmlcov
+title = Manufacturing System Coverage Report
+
+[xml]
+output = coverage.xml

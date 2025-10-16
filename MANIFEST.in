@@ -1,0 +1,22 @@
+include README.md
+include LICENSE
+include QUICK_START.md
+include PROJECT_DOCUMENTATION_2025.md
+include VS2022_README.md
+include requirements.txt
+include .env.example
+include setup_database.sql
+include *.bat
+include pyproject.toml
+
+recursive-include tests *.py
+recursive-include docs *.md *.rst *.txt
+recursive-include assets *.png *.jpg *.ico
+
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .git*
+global-exclude .env
+global-exclude *.log
+global-exclude .coverage
+global-exclude htmlcov
