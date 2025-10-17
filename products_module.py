@@ -416,6 +416,7 @@ class ProductsWindow(ctk.CTkToplevel):
         # Reload products after adding
         if hasattr(dialog, 'part_data') and dialog.part_data:
             # Save to database
+            # Save to database
             try:
                 part_data = dialog.part_data
                 response = self.db.client.table('parts').insert({

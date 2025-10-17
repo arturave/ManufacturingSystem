@@ -301,7 +301,7 @@ class CADProcessor:
         image_size: Tuple[int, int] = (1920, 1080)
     ) -> bool:
         """
-        Convert STEP file to image preview
+        Convert STEP file to image preview using render3d module
 
         Args:
             step_path: Path to STEP file
@@ -311,6 +311,33 @@ class CADProcessor:
         Returns:
             True if successful, False otherwise
         """
+        # Try to use the new render3d module first
+        try:
+            from render3d import StepIgesRenderer, OCC_AVAILABLE as RENDER3D_AVAILABLE
+
+            if RENDER3D_AVAILABLE:
+                try:
+                    renderer = StepIgesRenderer(width=image_size[0], height=image_size[1])
+                    # Try full rendering first
+                    try:
+                        renderer.render_to_png(step_path, output_path)
+                        return True
+                    except Exception as render_err:
+                        print(f"Full 3D rendering failed: {render_err}, trying fallback...")
+                        # Use fallback method that creates info image
+                        renderer.render_to_png_fallback(step_path, output_path)
+                        return True
+
+                except Exception as e:
+                    print(f"Error using render3d module: {e}")
+                    # Fall through to old method
+            else:
+                print("render3d module available but OCC not installed")
+
+        except ImportError:
+            print("render3d module not available, using legacy method")
+
+        # Fallback to old method if render3d is not available or fails
         if not OCC_AVAILABLE:
             print("Warning: pythonocc-core not available. Creating placeholder for STEP file.")
             return CADProcessor._create_3d_placeholder(step_path, output_path, "STEP")
@@ -337,7 +364,7 @@ class CADProcessor:
         image_size: Tuple[int, int] = (1920, 1080)
     ) -> bool:
         """
-        Convert IGES file to image preview
+        Convert IGES file to image preview using render3d module
 
         Args:
             iges_path: Path to IGES file
@@ -347,6 +374,33 @@ class CADProcessor:
         Returns:
             True if successful, False otherwise
         """
+        # Try to use the new render3d module first
+        try:
+            from render3d import StepIgesRenderer, OCC_AVAILABLE as RENDER3D_AVAILABLE
+
+            if RENDER3D_AVAILABLE:
+                try:
+                    renderer = StepIgesRenderer(width=image_size[0], height=image_size[1])
+                    # Try full rendering first
+                    try:
+                        renderer.render_to_png(iges_path, output_path)
+                        return True
+                    except Exception as render_err:
+                        print(f"Full 3D rendering failed: {render_err}, trying fallback...")
+                        # Use fallback method that creates info image
+                        renderer.render_to_png_fallback(iges_path, output_path)
+                        return True
+
+                except Exception as e:
+                    print(f"Error using render3d module: {e}")
+                    # Fall through to old method
+            else:
+                print("render3d module available but OCC not installed")
+
+        except ImportError:
+            print("render3d module not available, using legacy method")
+
+        # Fallback to old method if render3d is not available or fails
         if not OCC_AVAILABLE:
             print("Warning: pythonocc-core not available. Creating placeholder for IGES file.")
             return CADProcessor._create_3d_placeholder(iges_path, output_path, "IGES")

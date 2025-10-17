@@ -12,6 +12,9 @@ from typing import Optional, Dict, List, Any
 from tkinter import messagebox, filedialog
 import customtkinter as ctk
 from PIL import Image, ImageTk
+#import ezdxf
+#from ezdxf.addons.drawing import Frontend, RenderContext, svg, layout
+
 
 # Try to import tkinterdnd2 for drag & drop support (optional)
 try:
@@ -352,13 +355,24 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                         os.unlink(temp_low_res_path)
                 except:
                     pass
-                messagebox.showwarning(
-                    "Uwaga",
-                    "Nie można wygenerować podglądu z pliku CAD.\n"
-                    "Sprawdź czy plik jest poprawny i czy zainstalowano wymagane biblioteki:\n"
-                    "- ezdxf\n"
-                    "- pymupdf"
-                )
+                # Check file type for better error message
+                file_type = CADProcessor.get_file_type(file_path)
+                if file_type in ['step', 'iges']:
+                    messagebox.showwarning(
+                        "Uwaga",
+                        "Nie można wygenerować podglądu z pliku 3D.\n"
+                        "Sprawdź czy zainstalowano wymagane biblioteki:\n"
+                        "- pythonocc-core (instalacja: conda install -c conda-forge pythonocc-core)\n"
+                        "\nAlternatywnie możesz użyć grafiki PNG/JPG."
+                    )
+                else:
+                    messagebox.showwarning(
+                        "Uwaga",
+                        "Nie można wygenerować podglądu z pliku CAD.\n"
+                        "Sprawdź czy plik jest poprawny i czy zainstalowano wymagane biblioteki:\n"
+                        "- ezdxf\n"
+                        "- pymupdf"
+                    )
 
         except Exception as e:
             messagebox.showerror("Błąd", f"Błąd przetwarzania pliku CAD:\n{e}")

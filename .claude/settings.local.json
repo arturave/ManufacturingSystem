@@ -4,7 +4,8 @@
       "Bash(dir:*)",
       "Bash(python:*)",
       "Bash(pip install:*)",
-      "WebFetch(domain:ezdxf.readthedocs.io)"
+      "WebFetch(domain:ezdxf.readthedocs.io)",
+      "Bash(move test_dxf_rendering.py archivtest_dxf_rendering.py)"
     ],
     "deny": [],
     "ask": []
