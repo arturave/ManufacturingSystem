@@ -97,10 +97,12 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Folders -->
+    <Folder Include="tools\" />
     <Folder Include="tests\" />
     <Folder Include="docs\" />
     <Folder Include="assets\" />
     <Folder Include="logs\" />
+    <Folder Include="tools\ai\" />
   </ItemGroup>
   <ItemGroup>
     <Interpreter Include="env\">

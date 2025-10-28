@@ -5,7 +5,21 @@
       "Bash(python:*)",
       "Bash(pip install:*)",
       "WebFetch(domain:ezdxf.readthedocs.io)",
-      "Bash(move test_dxf_rendering.py archivtest_dxf_rendering.py)"
+      "Bash(move test_dxf_rendering.py archivtest_dxf_rendering.py)",
+      "Read(//e/Pobrane/**)",
+      "Bash(\"C:\\Program Files\\FreeCAD 1.0\\bin\\FreeCADCmd.exe\" --version)",
+      "Bash(\"C:\\Program Files\\FreeCAD 1.0\\bin\\FreeCADCmd.exe\" -c test_simple.py)",
+      "Bash(\"C:\\Program Files\\FreeCAD 1.0\\bin\\FreeCADCmd.exe\" -c test_step.py c:/temp/test.stp)",
+      "Bash(\"C:\\Program Files\\FreeCAD 1.0\\bin\\FreeCADCmd.exe\" test_step.py c:/temp/test.stp)",
+      "Bash(where:*)",
+      "Bash(env\\Scripts\\python.exe:*)",
+      "Bash(.envScriptspython.exe --version)",
+      "Bash(envScriptspip list)",
+      "Bash(envScriptspython.exe -m pip install --force-reinstall --no-cache-dir numpy==2.3.4)",
+      "Bash(env/Scripts/python.exe -m pip install --force-reinstall --no-cache-dir numpy==2.3.4)",
+      "Bash(env/Scripts/python.exe -m pip install --force-reinstall --no-cache-dir ezdxf==1.4.3)",
+      "Bash(env/Scripts/pip list)",
+      "Bash(findstr -i \"numpy ezdxf\")"
     ],
     "deny": [],
     "ask": []

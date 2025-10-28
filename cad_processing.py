@@ -301,7 +301,7 @@ class CADProcessor:
         image_size: Tuple[int, int] = (1920, 1080)
     ) -> bool:
         """
-        Convert STEP file to image preview using render3d module
+        Convert STEP file to image preview using FreeCAD or render3d module
 
         Args:
             step_path: Path to STEP file
@@ -311,7 +311,47 @@ class CADProcessor:
         Returns:
             True if successful, False otherwise
         """
-        # Try to use the new render3d module first
+        # Try simplified FreeCAD approach first
+        try:
+            from freecad_simple_renderer import SimpleFreeCADRenderer
+
+            try:
+                renderer = SimpleFreeCADRenderer()
+                success = renderer.extract_geometry_and_screenshot(
+                    step_path,
+                    output_path,
+                    width=image_size[0],
+                    height=image_size[1]
+                )
+                if success:
+                    print("Successfully processed STEP file with simplified FreeCAD renderer")
+                    return True
+            except Exception as e:
+                print(f"Simplified FreeCAD rendering failed: {e}, trying other methods...")
+        except ImportError:
+            print("Simplified FreeCAD renderer module not available")
+
+        # Try original FreeCAD renderer as fallback
+        try:
+            from freecad_renderer import FreeCADRenderer
+
+            try:
+                renderer = FreeCADRenderer()
+                success = renderer.render_with_info_fallback(
+                    step_path,
+                    output_path,
+                    width=image_size[0],
+                    height=image_size[1]
+                )
+                if success:
+                    print("Successfully rendered STEP file with FreeCAD")
+                    return True
+            except Exception as e:
+                print(f"FreeCAD rendering failed: {e}, trying other methods...")
+        except ImportError:
+            print("FreeCAD renderer module not available")
+
+        # Try to use the render3d module as fallback
         try:
             from render3d import StepIgesRenderer, OCC_AVAILABLE as RENDER3D_AVAILABLE
 
@@ -364,7 +404,7 @@ class CADProcessor:
         image_size: Tuple[int, int] = (1920, 1080)
     ) -> bool:
         """
-        Convert IGES file to image preview using render3d module
+        Convert IGES file to image preview using FreeCAD or render3d module
 
         Args:
             iges_path: Path to IGES file
@@ -374,7 +414,47 @@ class CADProcessor:
         Returns:
             True if successful, False otherwise
         """
-        # Try to use the new render3d module first
+        # Try simplified FreeCAD approach first
+        try:
+            from freecad_simple_renderer import SimpleFreeCADRenderer
+
+            try:
+                renderer = SimpleFreeCADRenderer()
+                success = renderer.extract_geometry_and_screenshot(
+                    iges_path,
+                    output_path,
+                    width=image_size[0],
+                    height=image_size[1]
+                )
+                if success:
+                    print("Successfully processed IGES file with simplified FreeCAD renderer")
+                    return True
+            except Exception as e:
+                print(f"Simplified FreeCAD rendering failed: {e}, trying other methods...")
+        except ImportError:
+            print("Simplified FreeCAD renderer module not available")
+
+        # Try original FreeCAD renderer as fallback
+        try:
+            from freecad_renderer import FreeCADRenderer
+
+            try:
+                renderer = FreeCADRenderer()
+                success = renderer.render_with_info_fallback(
+                    iges_path,
+                    output_path,
+                    width=image_size[0],
+                    height=image_size[1]
+                )
+                if success:
+                    print("Successfully rendered IGES file with FreeCAD")
+                    return True
+            except Exception as e:
+                print(f"FreeCAD rendering failed: {e}, trying other methods...")
+        except ImportError:
+            print("FreeCAD renderer module not available")
+
+        # Try to use the render3d module as fallback
         try:
             from render3d import StepIgesRenderer, OCC_AVAILABLE as RENDER3D_AVAILABLE
 

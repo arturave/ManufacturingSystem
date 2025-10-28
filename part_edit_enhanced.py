@@ -47,6 +47,9 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
         self.documentation_path = None
         self.current_image = None  # PIL Image
 
+        # Store references to prevent garbage collection
+        self.photo_references = []
+
         # Duplicate detection
         self.suggested_duplicates = []
 
@@ -390,13 +393,15 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
         preview_image = ImageProcessor.create_photoimage(image.copy(), (350, 250))
         self.image_preview.configure(image=preview_image, text="")
         self.image_preview.image = preview_image  # Keep reference
+        self.photo_references.append(preview_image)  # Additional reference to prevent GC
 
     def display_placeholder(self):
         """Display placeholder image"""
         placeholder = ImageProcessor.create_placeholder_image((350, 250), "Brak grafiki")
-        photo = ImageTk.PhotoImage(placeholder)
+        photo = ImageProcessor.create_photoimage(placeholder, (350, 250))
         self.image_preview.configure(image=photo, text="")
-        self.image_preview.image = photo
+        self.image_preview.image = photo  # Keep reference to prevent garbage collection
+        self.photo_references.append(photo)  # Additional reference to prevent GC
 
     def check_duplicates(self, *args):
         """Check for duplicate parts"""
