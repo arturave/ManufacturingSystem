@@ -296,10 +296,21 @@ class ProductSelectorDialog(ctk.CTkToplevel):
     def load_products(self):
         """Load all products from database"""
         try:
-            # Load products from products_catalog table (standalone products)
-            catalog_response = self.db.client.table('products_catalog').select(
-                "*, materials_dict!material_id(name, category), customers!customer_id(name)"
-            ).eq('is_active', True).order('name').execute()
+            catalog_products = []
+
+            # Try to load from products_catalog if table exists
+            try:
+                catalog_response = self.db.client.table('products_catalog').select(
+                    "*, materials_dict!material_id(name, category), customers!customer_id(name)"
+                ).eq('is_active', True).order('name').execute()
+                catalog_products = catalog_response.data or []
+
+                # Mark source for each product
+                for product in catalog_products:
+                    product['_source'] = 'catalog'
+            except Exception as catalog_error:
+                # Table doesn't exist yet or other error - continue without catalog products
+                print(f"Uwaga: Tabela products_catalog niedostępna: {catalog_error}")
 
             # Load products from parts table (existing order parts)
             # These can also be used as templates
@@ -307,13 +318,9 @@ class ProductSelectorDialog(ctk.CTkToplevel):
                 "*, materials_dict!material_id(name, category)"
             ).order('name').execute()
 
-            # Combine both sources, catalog products first
-            catalog_products = catalog_response.data or []
             parts_products = parts_response.data or []
 
             # Mark source for each product
-            for product in catalog_products:
-                product['_source'] = 'catalog'
             for product in parts_products:
                 product['_source'] = 'parts'
 
@@ -321,7 +328,7 @@ class ProductSelectorDialog(ctk.CTkToplevel):
             seen_codes = set()
             combined = []
 
-            # Add catalog products first
+            # Add catalog products first if we have any
             for product in catalog_products:
                 if product.get('idx_code'):
                     seen_codes.add(product['idx_code'])

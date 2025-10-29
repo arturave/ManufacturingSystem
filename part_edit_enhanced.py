@@ -648,7 +648,7 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 messagebox.showerror("Błąd", f"Nie można dodać detalu do bazy:\n{e}")
                 return
         else:
-            # No order_id - save to products_catalog as a standalone product
+            # No order_id - try to save to products_catalog as a standalone product
             try:
                 # Get selected customer ID if any
                 customer_id = None
@@ -672,18 +672,31 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                     'notes': ''
                 }
 
-                # Create product in catalog
-                response = self.db.client.table('products_catalog').insert(new_product_data).execute()
-                if response.data:
-                    messagebox.showinfo("Sukces", "Produkt został dodany do katalogu produktów")
-                    # Update part_data with the returned data including generated ID
-                    self.part_data.update(response.data[0])
-                    # Mark this as a catalog product
-                    self.part_data['_source'] = 'catalog'
+                # Try to create product in catalog
+                try:
+                    response = self.db.client.table('products_catalog').insert(new_product_data).execute()
+                    if response.data:
+                        messagebox.showinfo("Sukces", "Produkt został dodany do katalogu produktów")
+                        # Update part_data with the returned data including generated ID
+                        self.part_data.update(response.data[0])
+                        # Mark this as a catalog product
+                        self.part_data['_source'] = 'catalog'
+                except Exception as catalog_error:
+                    # If products_catalog doesn't exist, show informative message
+                    if 'products_catalog' in str(catalog_error):
+                        messagebox.showwarning(
+                            "Uwaga",
+                            "Tabela katalogu produktów nie istnieje w bazie danych.\n\n"
+                            "Wykonaj skrypt SQL: add_products_catalog_table.sql\n"
+                            "w panelu Supabase SQL Editor.\n\n"
+                            "Produkt zostanie zachowany lokalnie."
+                        )
+                    else:
+                        messagebox.showerror("Błąd", f"Nie można dodać produktu:\n{catalog_error}")
+                    # Still update part_data for local use
+                    # The product will be available in current session but not saved
             except Exception as e:
-                messagebox.showerror("Błąd", f"Nie można dodać produktu do katalogu:\n{e}")
-                return
-            pass
+                messagebox.showerror("Błąd", f"Błąd podczas zapisywania produktu:\n{e}")
 
         self.destroy()
 
