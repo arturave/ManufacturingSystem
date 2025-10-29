@@ -89,6 +89,24 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
         self.idx_entry = ctk.CTkEntry(left_frame, width=400, height=35, state="disabled")
         self.idx_entry.pack(pady=5)
 
+        # Customer field (when creating standalone product)
+        if not self.order_id:
+            ctk.CTkLabel(left_frame, text="Klient:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=5)
+
+            # Get customers list
+            customers_response = self.db.client.table('customers').select('id, name').order('name').execute()
+            customer_names = ['Bez klienta'] + [c['name'] for c in customers_response.data]
+            self.customer_map = {c['name']: c['id'] for c in customers_response.data}
+
+            self.customer_combo = ctk.CTkComboBox(
+                left_frame,
+                width=400,
+                height=35,
+                values=customer_names
+            )
+            self.customer_combo.set('Bez klienta')
+            self.customer_combo.pack(pady=5)
+
         # Name field
         ctk.CTkLabel(left_frame, text="Nazwa detalu*:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=5)
         self.name_entry = ctk.CTkEntry(left_frame, width=400, height=35)
@@ -606,6 +624,66 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
             except Exception as e:
                 messagebox.showerror("Błąd", f"Nie można zaktualizować detalu:\n{e}")
                 return
+        elif self.order_id:
+            # Create new part in database when we have order_id
+            try:
+                new_part_data = {
+                    'order_id': self.order_id,
+                    'name': name,
+                    'material_id': material_id,
+                    'thickness_mm': thickness,
+                    'qty': int(self.qty_entry.get().strip() or 1),
+                    'bending_cost': bending_cost,
+                    'additional_costs': additional_costs,
+                    'idx_code': self.idx_entry.get().strip() if self.idx_entry.get().strip() else None
+                }
+
+                # Create part in database
+                response = self.db.client.table('parts').insert(new_part_data).execute()
+                if response.data:
+                    messagebox.showinfo("Sukces", "Detal został dodany do bazy danych")
+                    # Update part_data with the returned data including generated ID
+                    self.part_data.update(response.data[0])
+            except Exception as e:
+                messagebox.showerror("Błąd", f"Nie można dodać detalu do bazy:\n{e}")
+                return
+        else:
+            # No order_id - save to products_catalog as a standalone product
+            try:
+                # Get selected customer ID if any
+                customer_id = None
+                if hasattr(self, 'customer_combo') and self.customer_combo.get():
+                    customer_name = self.customer_combo.get()
+                    # Find customer ID by name
+                    for cust in self.customers:
+                        if cust['name'] == customer_name:
+                            customer_id = cust['id']
+                            break
+
+                new_product_data = {
+                    'name': name,
+                    'material_id': material_id,
+                    'thickness_mm': thickness,
+                    'bending_cost': bending_cost,
+                    'additional_costs': additional_costs,
+                    'idx_code': self.idx_entry.get().strip() if self.idx_entry.get().strip() else None,
+                    'customer_id': customer_id,
+                    'description': '',  # Could be enhanced later
+                    'notes': ''
+                }
+
+                # Create product in catalog
+                response = self.db.client.table('products_catalog').insert(new_product_data).execute()
+                if response.data:
+                    messagebox.showinfo("Sukces", "Produkt został dodany do katalogu produktów")
+                    # Update part_data with the returned data including generated ID
+                    self.part_data.update(response.data[0])
+                    # Mark this as a catalog product
+                    self.part_data['_source'] = 'catalog'
+            except Exception as e:
+                messagebox.showerror("Błąd", f"Nie można dodać produktu do katalogu:\n{e}")
+                return
+            pass
 
         self.destroy()
 

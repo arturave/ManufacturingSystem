@@ -36,6 +36,11 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Main Application Files -->
+    <Compile Include="mfgviewer\app.py" />
+    <Compile Include="mfgviewer\backend_vtk.py" />
+    <Compile Include="mfgviewer\dxf_preview.py" />
+    <Compile Include="mfgviewer\sheet_thickness.py" />
+    <Compile Include="mfgviewer\__init__.py" />
     <Compile Include="mfg_integrated.py">
       <SubType>Code</SubType>
     </Compile>
@@ -58,6 +63,8 @@
       <SubType>Content</SubType>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="mfgviewer\README_MFGVIEWER.md" />
+    <Content Include="mfgviewer\requirements_mfgviewer.txt" />
     <Content Include="requirements.txt">
       <SubType>Content</SubType>
     </Content>
@@ -97,6 +104,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Folders -->
+    <Folder Include="mfgviewer\" />
     <Folder Include="tools\" />
     <Folder Include="tests\" />
     <Folder Include="docs\" />

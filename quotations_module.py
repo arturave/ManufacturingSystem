@@ -16,6 +16,8 @@ import json
 
 # Import głównych komponentów z mfg_app
 from mfg_app import SupabaseManager, STATUS_COLORS, STATUS_NAMES
+from attachments_gui_widgets import AttachmentsWidget
+from attachments_manager import AttachmentsManager
 
 @dataclass
 class Quotation:
@@ -232,13 +234,26 @@ class QuotationManager(SupabaseManager):
                         'qty': item.get('quantity', 1)
                     }
                     self.client.table('parts').insert(part_data).execute()
-                
+
+                # Kopiuj załączniki z oferty do zamówienia
+                attachments_manager = AttachmentsManager(self.client)
+                copied_count = attachments_manager.copy_attachments(
+                    source_entity_type='quotation',
+                    source_entity_id=quotation_id,
+                    target_entity_type='order',
+                    target_entity_id=order_id,
+                    created_by='system'
+                )
+
+                if copied_count > 0:
+                    print(f"✅ Skopiowano {copied_count} załączników z oferty do zamówienia")
+
                 # Zaktualizuj ofertę
                 self.client.table('quotations').update({
                     'status': 'CONVERTED',
                     'converted_to_order': order_id
                 }).eq('id', quotation_id).execute()
-                
+
                 return order_response.data[0]
             
             return None
@@ -254,7 +269,8 @@ class QuotationDialog(ctk.CTkToplevel):
         self.db = db
         self.quotation_data = quotation_data
         self.items = []
-        
+        self.quotation_id = quotation_data['id'] if quotation_data else None
+
         self.title("Edycja oferty" if quotation_data else "Nowa oferta")
         self.geometry("1100x700")
         
@@ -416,7 +432,16 @@ class QuotationDialog(ctk.CTkToplevel):
         ctk.CTkLabel(notes_frame, text="Uwagi:").pack(anchor="w", padx=10, pady=5)
         self.notes_text = ctk.CTkTextbox(notes_frame, height=100)
         self.notes_text.pack(fill="x", padx=10, pady=5)
-        
+
+        # Załączniki
+        self.attachments_widget = AttachmentsWidget(
+            main_frame,
+            db_client=self.db.client,
+            entity_type='quotation',
+            entity_id=self.quotation_id
+        )
+        self.attachments_widget.pack(fill="both", expand=True, padx=5, pady=10)
+
         # Bottom buttons
         btn_frame = ctk.CTkFrame(main_frame)
         btn_frame.pack(fill="x", pady=10)
@@ -517,8 +542,13 @@ class QuotationDialog(ctk.CTkToplevel):
         
         result = self.db.create_quotation(quotation)
         if result:
+            # Ustaw ID dla widgetu załączników
+            self.quotation_id = result['id']
+            self.attachments_widget.set_entity_id(result['id'])
+
             messagebox.showinfo("Sukces", f"Oferta {result['quote_no']} została utworzona")
-            self.destroy()
+            # Nie zamykaj okna, aby użytkownik mógł dodać załączniki
+            # self.destroy()
         else:
             messagebox.showerror("Błąd", "Nie udało się utworzyć oferty")
     

@@ -60,6 +60,10 @@ from customer_module_enhanced import (
     CustomerExportDialog
 )
 
+# Import attachments and WZ modules
+from attachments_gui_widgets import AttachmentsWidget
+from wz_dialog import WZGeneratorDialog
+
 # Load environment variables
 load_dotenv()
 
@@ -741,7 +745,8 @@ class OrderDialog(ctk.CTkToplevel):
         self.db = db
         self.order_data = order_data
         self.parts_list = []
-        
+        self.order_id = order_data['id'] if order_data else None
+
         self.title("Edycja zamówienia" if order_data else "Nowe zamówienie")
         self.geometry("1000x700")
         
@@ -908,7 +913,16 @@ class OrderDialog(ctk.CTkToplevel):
         self.parts_tree.column('qty', width=80)
         
         self.parts_tree.pack(fill="both", expand=True, pady=5)
-        
+
+        # Załączniki
+        self.attachments_widget = AttachmentsWidget(
+            main_frame,
+            db_client=self.db.client,
+            entity_type='order',
+            entity_id=self.order_id
+        )
+        self.attachments_widget.pack(fill="both", expand=True, padx=5, pady=10)
+
         # Bottom buttons
         btn_frame = ctk.CTkFrame(main_frame)
         btn_frame.pack(fill="x", pady=10)
@@ -1092,7 +1106,7 @@ class OrderDialog(ctk.CTkToplevel):
                 existing_parts = self.db.get_parts(self.order_data['id'])
                 for part in existing_parts:
                     self.db.delete_part(part['id'])
-                
+
                 # Add new parts
                 for part_data in self.parts_list:
                     part = Part(
@@ -1104,9 +1118,10 @@ class OrderDialog(ctk.CTkToplevel):
                         qty=int(part_data.get('qty', 1) or 1)
                     )
                     self.db.create_part(part)
-                
+
                 messagebox.showinfo("Sukces", "Zamówienie zostało zaktualizowane")
-                self.destroy()
+                # Nie zamykaj okna, aby użytkownik mógł edytować załączniki
+                # self.destroy()
             else:
                 messagebox.showerror("Błąd", "Nie udało się zaktualizować zamówienia")
         else:
@@ -1126,9 +1141,14 @@ class OrderDialog(ctk.CTkToplevel):
                         qty=int(part_data.get('qty', 1) or 1)
                     )
                     self.db.create_part(part)
-                
+
+                # Ustaw ID dla widgetu załączników
+                self.order_id = result['id']
+                self.attachments_widget.set_entity_id(result['id'])
+
                 messagebox.showinfo("Sukces", f"Zamówienie {result['process_no']} zostało utworzone")
-                self.destroy()
+                # Nie zamykaj okna, aby użytkownik mógł dodać załączniki
+                # self.destroy()
             else:
                 messagebox.showerror("Błąd", "Nie udało się utworzyć zamówienia")
 
@@ -1315,7 +1335,16 @@ class MainApplication(ctk.CTk):
             font=ctk.CTkFont(size=14, weight="bold"),
             command=self.new_order
         ).pack(side="left", padx=5)
-        
+
+        ctk.CTkButton(
+            btn_frame,
+            text="📦 Generuj WZ",
+            width=130,
+            height=35,
+            command=self.generate_wz,
+            fg_color="#FF6B6B"
+        ).pack(side="left", padx=5)
+
         ctk.CTkButton(
             btn_frame,
             text="👥 Klienci",
@@ -1737,7 +1766,26 @@ class MainApplication(ctk.CTk):
         dialog = OrderDialog(self, self.db)
         self.wait_window(dialog)
         self.refresh_all()
-    
+
+    def generate_wz(self):
+        """Generuje dokument WZ dla wybranego zamówienia"""
+        # Pobierz wybrane zamówienie z listy
+        selection = self.orders_tree.selection()
+        if not selection:
+            messagebox.showwarning("Uwaga", "Wybierz zamówienie do wygenerowania WZ")
+            return
+
+        # Pobierz ID zamówienia z tagów
+        item = self.orders_tree.item(selection[0])
+        order_id = item['tags'][1]  # Drugi tag to ID zamówienia
+
+        # Otwórz dialog generowania WZ
+        try:
+            dialog = WZGeneratorDialog(self, self.db.client, order_id)
+            dialog.focus()
+        except Exception as e:
+            messagebox.showerror("Błąd", f"Nie można otworzyć dialogu WZ:\n{e}")
+
     def edit_order(self):
         """Edit selected order"""
         selection = self.orders_tree.selection()

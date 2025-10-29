@@ -247,13 +247,13 @@ class ProductSelectorDialog(ctk.CTkToplevel):
         )
 
         # Define headings
-        tree.heading("#0", text="", width=50)  # Icon column
-        tree.heading("idx", text="Indeks", width=100)
-        tree.heading("name", text="Nazwa", width=250)
-        tree.heading("material", text="Materiał", width=150)
-        tree.heading("thickness", text="Grubość", width=80)
-        tree.heading("qty", text="Ilość", width=60)
-        tree.heading("cost", text="Koszt", width=100)
+        tree.heading("#0", text="")  # Icon column
+        tree.heading("idx", text="Indeks")
+        tree.heading("name", text="Nazwa")
+        tree.heading("material", text="Materiał")
+        tree.heading("thickness", text="Grubość")
+        tree.heading("qty", text="Ilość")
+        tree.heading("cost", text="Koszt")
 
         # Column configuration
         tree.column("#0", width=50, stretch=False)
@@ -296,12 +296,44 @@ class ProductSelectorDialog(ctk.CTkToplevel):
     def load_products(self):
         """Load all products from database"""
         try:
-            # Load products with material names
-            response = self.db.client.table('parts').select(
+            # Load products from products_catalog table (standalone products)
+            catalog_response = self.db.client.table('products_catalog').select(
+                "*, materials_dict!material_id(name, category), customers!customer_id(name)"
+            ).eq('is_active', True).order('name').execute()
+
+            # Load products from parts table (existing order parts)
+            # These can also be used as templates
+            parts_response = self.db.client.table('parts').select(
                 "*, materials_dict!material_id(name, category)"
             ).order('name').execute()
 
-            self.all_products = response.data
+            # Combine both sources, catalog products first
+            catalog_products = catalog_response.data or []
+            parts_products = parts_response.data or []
+
+            # Mark source for each product
+            for product in catalog_products:
+                product['_source'] = 'catalog'
+            for product in parts_products:
+                product['_source'] = 'parts'
+
+            # Combine and remove duplicates (prefer catalog version)
+            seen_codes = set()
+            combined = []
+
+            # Add catalog products first
+            for product in catalog_products:
+                if product.get('idx_code'):
+                    seen_codes.add(product['idx_code'])
+                combined.append(product)
+
+            # Add parts that don't have matching idx_code in catalog
+            for product in parts_products:
+                idx_code = product.get('idx_code')
+                if not idx_code or idx_code not in seen_codes:
+                    combined.append(product)
+
+            self.all_products = combined
             self.filtered_products = self.all_products
             self.populate_left_table()
 
