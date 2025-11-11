@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Enhanced Part Edit Dialog V2 - z integracją podglądu 2D/3D
+Enhanced Part Edit Dialog V3 - z poprawioną integracją binarnego zapisu plików
 """
 
 import os
@@ -13,20 +13,20 @@ from tkinter import messagebox, filedialog
 import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageTk
+import io
 
-# Import systemu podglądu
-from integrated_viewer_v2 import (
+# Import systemu podglądu V3
+from integrated_viewer_v3 import (
     EnhancedFilePreviewFrame,
-    ThumbnailGenerator,
-    ViewerPopup
+    ThumbnailGenerator
 )
 
-from image_processing import ImageProcessor, get_cached_image
+from image_processing import ImageProcessor
 from materials_dict_module import MaterialSelector
 
 
-class EnhancedPartEditDialog(ctk.CTkToplevel):
-    """Enhanced dialog V2 z podglądem 2D/3D i generowaniem miniatur"""
+class EnhancedPartEditDialogV3(ctk.CTkToplevel):
+    """Enhanced dialog V3 z binarnym zapisem plików"""
 
     def __init__(self, parent, db, parts_list, part_data=None, part_index=None, order_id=None):
         super().__init__(parent)
@@ -36,20 +36,13 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
         self.part_index = part_index
         self.order_id = order_id
 
-        # Ścieżki do plików
-        self.cad_2d_file = None
-        self.cad_3d_file = None
-        self.user_image_file = None
-        self.thumbnail_data = None
-        self.preview_4k_data = None
-
         # Zmienne dla radio buttons
         self.graphic_source_var = tk.StringVar(value="")
 
         # Store references to prevent garbage collection
         self.photo_references = []
 
-        self.title("Edycja detalu V2" if part_data else "Nowy detal V2")
+        self.title("Edycja detalu V3" if part_data else "Nowy detal V3")
         self.geometry("1200x700")
 
         # Make modal
@@ -277,8 +270,6 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
             fg_color="#f44336"
         ).pack(side="right", padx=5)
 
-        # Removed generate thumbnails button - thumbnails are now generated automatically
-
     def update_total_cost(self, event=None):
         """Aktualizuj wyświetlaną sumę kosztów"""
         try:
@@ -330,18 +321,60 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
         if self.part_data_original.get('primary_graphic_source'):
             self.graphic_source_var.set(self.part_data_original['primary_graphic_source'])
 
-        # File paths
-        if self.part_data_original.get('cad_2d_file'):
-            self.frame_2d.file_path = self.part_data_original['cad_2d_file']
-            self.frame_2d.file_label.configure(text=Path(self.part_data_original['cad_2d_file']).name)
+        # Load binary files from database
+        # 2D CAD
+        if self.part_data_original.get('cad_2d_binary'):
+            file_binary = self.part_data_original['cad_2d_binary']
+            file_name = self.part_data_original.get('cad_2d_filename', 'file.dxf')
+            # Jeśli dane są zakodowane w base64 (z bazy), zdekoduj
+            if isinstance(file_binary, str):
+                file_binary = base64.b64decode(file_binary)
+            self.frame_2d.set_file_data(file_binary, file_name)
 
-        if self.part_data_original.get('cad_3d_file'):
-            self.frame_3d.file_path = self.part_data_original['cad_3d_file']
-            self.frame_3d.file_label.configure(text=Path(self.part_data_original['cad_3d_file']).name)
+        # 3D CAD
+        if self.part_data_original.get('cad_3d_binary'):
+            file_binary = self.part_data_original['cad_3d_binary']
+            file_name = self.part_data_original.get('cad_3d_filename', 'file.step')
+            if isinstance(file_binary, str):
+                file_binary = base64.b64decode(file_binary)
+            self.frame_3d.set_file_data(file_binary, file_name)
 
-        if self.part_data_original.get('user_image_file'):
-            self.frame_user.file_path = self.part_data_original['user_image_file']
-            self.frame_user.file_label.configure(text=Path(self.part_data_original['user_image_file']).name)
+        # User image
+        if self.part_data_original.get('user_image_binary'):
+            file_binary = self.part_data_original['user_image_binary']
+            file_name = self.part_data_original.get('user_image_filename', 'image.jpg')
+            if isinstance(file_binary, str):
+                file_binary = base64.b64decode(file_binary)
+            self.frame_user.set_file_data(file_binary, file_name)
+
+        # Display thumbnail if exists
+        if self.part_data_original.get('thumbnail_100'):
+            self.display_thumbnail(self.part_data_original['thumbnail_100'])
+
+    def display_thumbnail(self, thumbnail_data):
+        """Display thumbnail based on selected source"""
+        try:
+            # Decode if base64
+            if isinstance(thumbnail_data, str):
+                thumbnail_data = base64.b64decode(thumbnail_data)
+
+            # Display in appropriate frame
+            source = self.graphic_source_var.get()
+            frame = None
+            if source == "2D":
+                frame = self.frame_2d
+            elif source == "3D":
+                frame = self.frame_3d
+            elif source == "USER":
+                frame = self.frame_user
+
+            if frame:
+                img = Image.open(io.BytesIO(thumbnail_data))
+                photo = ImageTk.PhotoImage(img)
+                frame.preview_label.configure(image=photo, text="")
+                frame.preview_label.image = photo
+        except Exception as e:
+            print(f"Error displaying thumbnail: {e}")
 
     def save_part(self):
         """Save part data"""
@@ -393,15 +426,14 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
 
         # Get selected thumbnail based on source
         thumbnail_100 = None
-        preview_4k = None
         primary_source = self.graphic_source_var.get() if self.graphic_source_var.get() else None
 
-        if primary_source == "2D" and self.frame_2d.thumbnail_data:
-            thumbnail_100 = self.frame_2d.thumbnail_data
-        elif primary_source == "3D" and self.frame_3d.thumbnail_data:
-            thumbnail_100 = self.frame_3d.thumbnail_data
-        elif primary_source == "USER" and self.frame_user.thumbnail_data:
-            thumbnail_100 = self.frame_user.thumbnail_data
+        if primary_source == "2D" and self.frame_2d.get_thumbnail():
+            thumbnail_100 = self.frame_2d.get_thumbnail()
+        elif primary_source == "3D" and self.frame_3d.get_thumbnail():
+            thumbnail_100 = self.frame_3d.get_thumbnail()
+        elif primary_source == "USER" and self.frame_user.get_thumbnail():
+            thumbnail_100 = self.frame_user.get_thumbnail()
 
         # Build part data
         self.part_data = {
@@ -415,12 +447,15 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
             'additional_costs': additional_costs,
             'material_cost': material_cost,
             'laser_cost': laser_cost,
-            'cad_2d_file': self.frame_2d.file_path,
-            'cad_3d_file': self.frame_3d.file_path,
-            'user_image_file': self.frame_user.file_path,
             'primary_graphic_source': primary_source,
             'thumbnail_100': thumbnail_100,
-            'preview_4k': preview_4k
+            # Binary files
+            'cad_2d_binary': self.frame_2d.get_file_binary(),
+            'cad_2d_filename': self.frame_2d.get_file_name(),
+            'cad_3d_binary': self.frame_3d.get_file_binary(),
+            'cad_3d_filename': self.frame_3d.get_file_name(),
+            'user_image_binary': self.frame_user.get_file_binary(),
+            'user_image_filename': self.frame_user.get_file_name(),
         }
 
         # Save to database if needed
@@ -448,13 +483,23 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 'additional_costs': self.part_data['additional_costs'],
                 'material_cost': self.part_data['material_cost'],
                 'laser_cost': self.part_data['laser_cost'],
-                'cad_2d_file': self.part_data['cad_2d_file'],
-                'cad_3d_file': self.part_data['cad_3d_file'],
-                'user_image_file': self.part_data['user_image_file'],
                 'primary_graphic_source': self.part_data['primary_graphic_source']
             }
 
-            # Add thumbnail if available (convert bytes to base64 string)
+            # Add binary files
+            if self.part_data['cad_2d_binary']:
+                updates['cad_2d_binary'] = base64.b64encode(self.part_data['cad_2d_binary']).decode('utf-8')
+                updates['cad_2d_filename'] = self.part_data['cad_2d_filename']
+
+            if self.part_data['cad_3d_binary']:
+                updates['cad_3d_binary'] = base64.b64encode(self.part_data['cad_3d_binary']).decode('utf-8')
+                updates['cad_3d_filename'] = self.part_data['cad_3d_filename']
+
+            if self.part_data['user_image_binary']:
+                updates['user_image_binary'] = base64.b64encode(self.part_data['user_image_binary']).decode('utf-8')
+                updates['user_image_filename'] = self.part_data['user_image_filename']
+
+            # Add thumbnail if available
             if self.part_data['thumbnail_100']:
                 if isinstance(self.part_data['thumbnail_100'], bytes):
                     updates['thumbnail_100'] = base64.b64encode(self.part_data['thumbnail_100']).decode('utf-8')
@@ -480,13 +525,23 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 'material_cost': self.part_data['material_cost'],
                 'laser_cost': self.part_data['laser_cost'],
                 'idx_code': self.idx_entry.get().strip() if self.idx_entry.get().strip() else None,
-                'cad_2d_file': self.part_data['cad_2d_file'],
-                'cad_3d_file': self.part_data['cad_3d_file'],
-                'user_image_file': self.part_data['user_image_file'],
                 'primary_graphic_source': self.part_data['primary_graphic_source']
             }
 
-            # Add thumbnail if available (convert bytes to base64 string)
+            # Add binary files
+            if self.part_data['cad_2d_binary']:
+                new_part_data['cad_2d_binary'] = base64.b64encode(self.part_data['cad_2d_binary']).decode('utf-8')
+                new_part_data['cad_2d_filename'] = self.part_data['cad_2d_filename']
+
+            if self.part_data['cad_3d_binary']:
+                new_part_data['cad_3d_binary'] = base64.b64encode(self.part_data['cad_3d_binary']).decode('utf-8')
+                new_part_data['cad_3d_filename'] = self.part_data['cad_3d_filename']
+
+            if self.part_data['user_image_binary']:
+                new_part_data['user_image_binary'] = base64.b64encode(self.part_data['user_image_binary']).decode('utf-8')
+                new_part_data['user_image_filename'] = self.part_data['user_image_filename']
+
+            # Add thumbnail
             if self.part_data['thumbnail_100']:
                 if isinstance(self.part_data['thumbnail_100'], bytes):
                     new_part_data['thumbnail_100'] = base64.b64encode(self.part_data['thumbnail_100']).decode('utf-8')
@@ -520,15 +575,25 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 'laser_cost': self.part_data['laser_cost'],
                 'idx_code': self.idx_entry.get().strip() if self.idx_entry.get().strip() else None,
                 'customer_id': customer_id,
-                'cad_2d_file': self.part_data['cad_2d_file'],
-                'cad_3d_file': self.part_data['cad_3d_file'],
-                'user_image_file': self.part_data['user_image_file'],
                 'primary_graphic_source': self.part_data['primary_graphic_source'],
                 'description': '',
                 'notes': ''
             }
 
-            # Add thumbnail if available (convert bytes to base64 string)
+            # Add binary files
+            if self.part_data['cad_2d_binary']:
+                new_product_data['cad_2d_binary'] = base64.b64encode(self.part_data['cad_2d_binary']).decode('utf-8')
+                new_product_data['cad_2d_filename'] = self.part_data['cad_2d_filename']
+
+            if self.part_data['cad_3d_binary']:
+                new_product_data['cad_3d_binary'] = base64.b64encode(self.part_data['cad_3d_binary']).decode('utf-8')
+                new_product_data['cad_3d_filename'] = self.part_data['cad_3d_filename']
+
+            if self.part_data['user_image_binary']:
+                new_product_data['user_image_binary'] = base64.b64encode(self.part_data['user_image_binary']).decode('utf-8')
+                new_product_data['user_image_filename'] = self.part_data['user_image_filename']
+
+            # Add thumbnail
             if self.part_data['thumbnail_100']:
                 if isinstance(self.part_data['thumbnail_100'], bytes):
                     new_product_data['thumbnail_100'] = base64.b64encode(self.part_data['thumbnail_100']).decode('utf-8')
@@ -543,24 +608,12 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                     self.part_data['_source'] = 'catalog'
             except Exception as catalog_error:
                 error_msg = str(catalog_error).lower()
-                if 'relation "products_catalog" does not exist' in error_msg:
+                if 'column' in error_msg and 'binary' in error_msg:
                     messagebox.showwarning(
                         "Uwaga",
-                        "Tabela katalogu produktów nie istnieje w bazie danych.\n\n"
-                        "Wykonaj skrypt SQL do utworzenia tabeli products_catalog\n"
-                        "w panelu Supabase SQL Editor.\n\n"
-                        "Produkt zostanie zachowany lokalnie."
-                    )
-                elif 'column' in error_msg and ('material_laser_cost' in error_msg or 'material_cost' in error_msg or 'laser_cost' in error_msg):
-                    messagebox.showwarning(
-                        "Uwaga",
-                        "Brakuje pól kosztowych w tabeli products_catalog.\n\n"
-                        "Wykonaj skrypt SQL: ADD_PRODUCTS_CATALOG_FIELDS.sql\n"
-                        "w panelu Supabase SQL Editor aby dodać:\n"
-                        "- material_laser_cost\n"
-                        "- material_cost\n"
-                        "- laser_cost\n\n"
-                        "Produkt zostanie zachowany lokalnie."
+                        "Brakuje kolumn binarnych w tabeli products_catalog.\n\n"
+                        "Wykonaj skrypt SQL: 02_CLEANUP_DATABASE.sql\n"
+                        "w panelu Supabase SQL Editor aby dodać kolumny binarne."
                     )
                 else:
                     messagebox.showerror("Błąd", f"Nie można dodać produktu:\n{catalog_error}")
@@ -569,7 +622,7 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
 
 
 # Alias dla kompatybilności
-EnhancedPartEditDialogV2 = EnhancedPartEditDialog
+EnhancedPartEditDialog = EnhancedPartEditDialogV3
 
 
 def test_dialog():
@@ -582,7 +635,7 @@ def test_dialog():
     root.withdraw()
 
     db = Database()
-    dialog = EnhancedPartEditDialog(root, db, [], part_data=None, order_id=None)
+    dialog = EnhancedPartEditDialogV3(root, db, [], part_data=None, order_id=None)
     root.mainloop()
 
 

@@ -6,7 +6,6 @@ Enhanced Part Edit Dialog V2 - z integracją podglądu 2D/3D
 
 import os
 import tempfile
-import base64
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 from tkinter import messagebox, filedialog
@@ -15,7 +14,7 @@ import customtkinter as ctk
 from PIL import Image, ImageTk
 
 # Import systemu podglądu
-from integrated_viewer_v2 import (
+from integrated_viewer import (
     EnhancedFilePreviewFrame,
     ThumbnailGenerator,
     ViewerPopup
@@ -27,6 +26,9 @@ from materials_dict_module import MaterialSelector
 
 class EnhancedPartEditDialog(ctk.CTkToplevel):
     """Enhanced dialog V2 z podglądem 2D/3D i generowaniem miniatur"""
+
+# Alias dla kompatybilności
+EnhancedPartEditDialogV2 = EnhancedPartEditDialog
 
     def __init__(self, parent, db, parts_list, part_data=None, part_index=None, order_id=None):
         super().__init__(parent)
@@ -133,66 +135,15 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=12, slant="italic")
         ).pack(anchor="w")
 
-        # === KOSZTY ===
-        ctk.CTkLabel(
-            left_frame,
-            text="💰 Koszty",
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(anchor="w", pady=(10, 5))
-
-        # Material + Laser cost (main field - required)
-        ctk.CTkLabel(left_frame, text="Koszt cięcia i materiał [PLN]*:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=5)
-        self.material_laser_cost_entry = ctk.CTkEntry(left_frame, width=200, height=35, placeholder_text="0.00")
-        self.material_laser_cost_entry.pack(pady=5, anchor="w")
-        self.material_laser_cost_entry.bind('<KeyRelease>', self.update_total_cost)
-
         # Bending cost
         ctk.CTkLabel(left_frame, text="Koszt gięcia [PLN]:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=5)
         self.bending_cost_entry = ctk.CTkEntry(left_frame, width=200, height=35, placeholder_text="0.00")
         self.bending_cost_entry.pack(pady=5, anchor="w")
-        self.bending_cost_entry.bind('<KeyRelease>', self.update_total_cost)
 
         # Additional costs
         ctk.CTkLabel(left_frame, text="Koszty dodatkowe [PLN]:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=5)
         self.additional_costs_entry = ctk.CTkEntry(left_frame, width=200, height=35, placeholder_text="0.00")
         self.additional_costs_entry.pack(pady=5, anchor="w")
-        self.additional_costs_entry.bind('<KeyRelease>', self.update_total_cost)
-
-        # Total cost display
-        total_frame = ctk.CTkFrame(left_frame, fg_color="#2b2b2b", corner_radius=8)
-        total_frame.pack(pady=10, anchor="w", fill="x", padx=5)
-
-        ctk.CTkLabel(
-            total_frame,
-            text="Suma kosztów:",
-            font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(side="left", padx=10, pady=8)
-
-        self.total_cost_label = ctk.CTkLabel(
-            total_frame,
-            text="0.00 PLN",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#4CAF50"
-        )
-        self.total_cost_label.pack(side="right", padx=10, pady=8)
-
-        # Optional detailed costs
-        ctk.CTkLabel(
-            left_frame,
-            text="Szczegółowe koszty (opcjonalne):",
-            font=ctk.CTkFont(size=12, slant="italic"),
-            text_color="#888888"
-        ).pack(anchor="w", pady=(10, 2))
-
-        # Material cost (optional)
-        ctk.CTkLabel(left_frame, text="Koszt materiału [PLN]:", font=ctk.CTkFont(size=12)).pack(anchor="w", pady=2)
-        self.material_cost_entry = ctk.CTkEntry(left_frame, width=200, height=30, placeholder_text="opcjonalne")
-        self.material_cost_entry.pack(pady=2, anchor="w")
-
-        # Laser cost (optional)
-        ctk.CTkLabel(left_frame, text="Koszt cięcia [PLN]:", font=ctk.CTkFont(size=12)).pack(anchor="w", pady=2)
-        self.laser_cost_entry = ctk.CTkEntry(left_frame, width=200, height=30, placeholder_text="opcjonalne")
-        self.laser_cost_entry.pack(pady=2, anchor="w")
 
         # Right side - Graphics previews
         right_frame = ctk.CTkFrame(main_container)
@@ -277,20 +228,13 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
             fg_color="#f44336"
         ).pack(side="right", padx=5)
 
-        # Removed generate thumbnails button - thumbnails are now generated automatically
-
-    def update_total_cost(self, event=None):
-        """Aktualizuj wyświetlaną sumę kosztów"""
-        try:
-            material_laser = float(self.material_laser_cost_entry.get() or 0)
-            bending = float(self.bending_cost_entry.get() or 0)
-            additional = float(self.additional_costs_entry.get() or 0)
-
-            total = material_laser + bending + additional
-
-            self.total_cost_label.configure(text=f"{total:.2f} PLN")
-        except ValueError:
-            self.total_cost_label.configure(text="---.-- PLN")
+        # Generate thumbnails button
+        ctk.CTkButton(
+            button_frame,
+            text="🖼️ Generuj miniatury",
+            width=150,
+            command=self.generate_all_thumbnails
+        ).pack(side="left", padx=5)
 
     def load_part_data(self):
         """Load existing part data into form"""
@@ -312,19 +256,10 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
             self.material_selector.set_material(self.part_data_original['material_id'])
 
         # Costs
-        if self.part_data_original.get('material_laser_cost'):
-            self.material_laser_cost_entry.insert(0, str(self.part_data_original['material_laser_cost']))
         if self.part_data_original.get('bending_cost'):
             self.bending_cost_entry.insert(0, str(self.part_data_original['bending_cost']))
         if self.part_data_original.get('additional_costs'):
             self.additional_costs_entry.insert(0, str(self.part_data_original['additional_costs']))
-        if self.part_data_original.get('material_cost'):
-            self.material_cost_entry.insert(0, str(self.part_data_original['material_cost']))
-        if self.part_data_original.get('laser_cost'):
-            self.laser_cost_entry.insert(0, str(self.part_data_original['laser_cost']))
-
-        # Update total cost display
-        self.update_total_cost()
 
         # Graphics source
         if self.part_data_original.get('primary_graphic_source'):
@@ -342,6 +277,33 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
         if self.part_data_original.get('user_image_file'):
             self.frame_user.file_path = self.part_data_original['user_image_file']
             self.frame_user.file_label.configure(text=Path(self.part_data_original['user_image_file']).name)
+
+    def generate_all_thumbnails(self):
+        """Generuj wszystkie miniatury"""
+        generated = []
+
+        # 2D CAD
+        if self.frame_2d.file_path:
+            self.frame_2d.generate_thumbnail()
+            if self.frame_2d.thumbnail_data:
+                generated.append("2D")
+
+        # 3D CAD
+        if self.frame_3d.file_path:
+            self.frame_3d.generate_thumbnail()
+            if self.frame_3d.thumbnail_data:
+                generated.append("3D")
+
+        # User image
+        if self.frame_user.file_path:
+            self.frame_user.generate_thumbnail()
+            if self.frame_user.thumbnail_data:
+                generated.append("User")
+
+        if generated:
+            messagebox.showinfo("Sukces", f"Wygenerowano miniatury: {', '.join(generated)}")
+        else:
+            messagebox.showwarning("Uwaga", "Brak plików do wygenerowania miniatur")
 
     def save_part(self):
         """Save part data"""
@@ -362,33 +324,12 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
             messagebox.showerror("Błąd", "Nieprawidłowa wartość grubości")
             return
 
-        # Get costs - validate material_laser_cost (required)
-        try:
-            material_laser_cost = float(self.material_laser_cost_entry.get().strip() or 0)
-            if material_laser_cost <= 0:
-                messagebox.showerror("Błąd", "Koszt cięcia i materiału jest wymagany i musi być większy od 0")
-                return
-        except ValueError:
-            messagebox.showerror("Błąd", "Nieprawidłowa wartość kosztu cięcia i materiału")
-            return
-
+        # Get costs
         try:
             bending_cost = float(self.bending_cost_entry.get().strip() or 0)
             additional_costs = float(self.additional_costs_entry.get().strip() or 0)
         except ValueError:
             messagebox.showerror("Błąd", "Nieprawidłowe wartości kosztów")
-            return
-
-        # Get optional detailed costs
-        material_cost = None
-        laser_cost = None
-        try:
-            if self.material_cost_entry.get().strip():
-                material_cost = float(self.material_cost_entry.get().strip())
-            if self.laser_cost_entry.get().strip():
-                laser_cost = float(self.laser_cost_entry.get().strip())
-        except ValueError:
-            messagebox.showerror("Błąd", "Nieprawidłowe wartości szczegółowych kosztów")
             return
 
         # Get selected thumbnail based on source
@@ -410,11 +351,8 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
             'material_id': material_id,
             'material_name': self.material_selector.selected_material_name,
             'thickness_mm': thickness,
-            'material_laser_cost': material_laser_cost,
             'bending_cost': bending_cost,
             'additional_costs': additional_costs,
-            'material_cost': material_cost,
-            'laser_cost': laser_cost,
             'cad_2d_file': self.frame_2d.file_path,
             'cad_3d_file': self.frame_3d.file_path,
             'user_image_file': self.frame_user.file_path,
@@ -443,23 +381,17 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 'name': self.part_data['name'],
                 'material_id': self.part_data['material_id'],
                 'thickness_mm': self.part_data['thickness_mm'],
-                'material_laser_cost': self.part_data['material_laser_cost'],
                 'bending_cost': self.part_data['bending_cost'],
                 'additional_costs': self.part_data['additional_costs'],
-                'material_cost': self.part_data['material_cost'],
-                'laser_cost': self.part_data['laser_cost'],
                 'cad_2d_file': self.part_data['cad_2d_file'],
                 'cad_3d_file': self.part_data['cad_3d_file'],
                 'user_image_file': self.part_data['user_image_file'],
                 'primary_graphic_source': self.part_data['primary_graphic_source']
             }
 
-            # Add thumbnail if available (convert bytes to base64 string)
+            # Add thumbnail if available
             if self.part_data['thumbnail_100']:
-                if isinstance(self.part_data['thumbnail_100'], bytes):
-                    updates['thumbnail_100'] = base64.b64encode(self.part_data['thumbnail_100']).decode('utf-8')
-                else:
-                    updates['thumbnail_100'] = self.part_data['thumbnail_100']
+                updates['thumbnail_100'] = self.part_data['thumbnail_100']
 
             self.db.update_part(self.part_data_original['id'], updates)
             messagebox.showinfo("Sukces", "Detal został zaktualizowany")
@@ -474,11 +406,8 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 'name': self.part_data['name'],
                 'material_id': self.part_data['material_id'],
                 'thickness_mm': self.part_data['thickness_mm'],
-                'material_laser_cost': self.part_data['material_laser_cost'],
                 'bending_cost': self.part_data['bending_cost'],
                 'additional_costs': self.part_data['additional_costs'],
-                'material_cost': self.part_data['material_cost'],
-                'laser_cost': self.part_data['laser_cost'],
                 'idx_code': self.idx_entry.get().strip() if self.idx_entry.get().strip() else None,
                 'cad_2d_file': self.part_data['cad_2d_file'],
                 'cad_3d_file': self.part_data['cad_3d_file'],
@@ -486,12 +415,9 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 'primary_graphic_source': self.part_data['primary_graphic_source']
             }
 
-            # Add thumbnail if available (convert bytes to base64 string)
+            # Add thumbnail if available
             if self.part_data['thumbnail_100']:
-                if isinstance(self.part_data['thumbnail_100'], bytes):
-                    new_part_data['thumbnail_100'] = base64.b64encode(self.part_data['thumbnail_100']).decode('utf-8')
-                else:
-                    new_part_data['thumbnail_100'] = self.part_data['thumbnail_100']
+                new_part_data['thumbnail_100'] = self.part_data['thumbnail_100']
 
             response = self.db.client.table('parts').insert(new_part_data).execute()
             if response.data:
@@ -513,11 +439,8 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 'name': self.part_data['name'],
                 'material_id': self.part_data['material_id'],
                 'thickness_mm': self.part_data['thickness_mm'],
-                'material_laser_cost': self.part_data['material_laser_cost'],
                 'bending_cost': self.part_data['bending_cost'],
                 'additional_costs': self.part_data['additional_costs'],
-                'material_cost': self.part_data['material_cost'],
-                'laser_cost': self.part_data['laser_cost'],
                 'idx_code': self.idx_entry.get().strip() if self.idx_entry.get().strip() else None,
                 'customer_id': customer_id,
                 'cad_2d_file': self.part_data['cad_2d_file'],
@@ -528,12 +451,9 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                 'notes': ''
             }
 
-            # Add thumbnail if available (convert bytes to base64 string)
+            # Add thumbnail if available
             if self.part_data['thumbnail_100']:
-                if isinstance(self.part_data['thumbnail_100'], bytes):
-                    new_product_data['thumbnail_100'] = base64.b64encode(self.part_data['thumbnail_100']).decode('utf-8')
-                else:
-                    new_product_data['thumbnail_100'] = self.part_data['thumbnail_100']
+                new_product_data['thumbnail_100'] = self.part_data['thumbnail_100']
 
             try:
                 response = self.db.client.table('products_catalog').insert(new_product_data).execute()
@@ -542,34 +462,18 @@ class EnhancedPartEditDialog(ctk.CTkToplevel):
                     self.part_data.update(response.data[0])
                     self.part_data['_source'] = 'catalog'
             except Exception as catalog_error:
-                error_msg = str(catalog_error).lower()
-                if 'relation "products_catalog" does not exist' in error_msg:
+                if 'products_catalog' in str(catalog_error):
                     messagebox.showwarning(
                         "Uwaga",
                         "Tabela katalogu produktów nie istnieje w bazie danych.\n\n"
-                        "Wykonaj skrypt SQL do utworzenia tabeli products_catalog\n"
+                        "Wykonaj skrypt SQL: add_products_catalog_table.sql\n"
                         "w panelu Supabase SQL Editor.\n\n"
-                        "Produkt zostanie zachowany lokalnie."
-                    )
-                elif 'column' in error_msg and ('material_laser_cost' in error_msg or 'material_cost' in error_msg or 'laser_cost' in error_msg):
-                    messagebox.showwarning(
-                        "Uwaga",
-                        "Brakuje pól kosztowych w tabeli products_catalog.\n\n"
-                        "Wykonaj skrypt SQL: ADD_PRODUCTS_CATALOG_FIELDS.sql\n"
-                        "w panelu Supabase SQL Editor aby dodać:\n"
-                        "- material_laser_cost\n"
-                        "- material_cost\n"
-                        "- laser_cost\n\n"
                         "Produkt zostanie zachowany lokalnie."
                     )
                 else:
                     messagebox.showerror("Błąd", f"Nie można dodać produktu:\n{catalog_error}")
         except Exception as e:
             messagebox.showerror("Błąd", f"Błąd podczas zapisywania produktu:\n{e}")
-
-
-# Alias dla kompatybilności
-EnhancedPartEditDialogV2 = EnhancedPartEditDialog
 
 
 def test_dialog():
@@ -582,7 +486,7 @@ def test_dialog():
     root.withdraw()
 
     db = Database()
-    dialog = EnhancedPartEditDialog(root, db, [], part_data=None, order_id=None)
+    dialog = EnhancedPartEditDialogV2(root, db, [], part_data=None, order_id=None)
     root.mainloop()
 
 

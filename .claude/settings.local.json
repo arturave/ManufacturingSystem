@@ -19,7 +19,21 @@
       "Bash(env/Scripts/python.exe -m pip install --force-reinstall --no-cache-dir numpy==2.3.4)",
       "Bash(env/Scripts/python.exe -m pip install --force-reinstall --no-cache-dir ezdxf==1.4.3)",
       "Bash(env/Scripts/pip list)",
-      "Bash(findstr -i \"numpy ezdxf\")"
+      "Bash(findstr -i \"numpy ezdxf\")",
+      "Bash(copy part_edit_enhanced.py part_edit_enhanced_backup.py)",
+      "Bash(copy part_edit_enhanced_v2.py part_edit_enhanced.py)",
+      "Bash(env/Scripts/python.exe:*)",
+      "Bash(findstr:*)",
+      "Bash(cmd /c \"dir /s /b 2>nul | findstr /i venv\")",
+      "Bash(powershell -Command:*)",
+      "Bash(envScriptspython.exe -m pip install --upgrade pip)",
+      "Bash(.\\env\\Scripts\\python.exe -m pip install --upgrade pip)",
+      "Bash(del:*)",
+      "Bash(fix_visualization_minimal.bat)",
+      "Bash(cmd /c fix_visualization_minimal.bat)",
+      "Bash(nul)",
+      "Bash(env/Scripts/pip install:*)",
+      "Bash(cmd /c \"dir /b | findstr ^env\")"
     ],
     "deny": [],
     "ask": []

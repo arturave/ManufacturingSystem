@@ -11,6 +11,8 @@ import tkinter as tk
 from typing import Optional, List, Dict, Any, Callable
 from datetime import datetime
 from PIL import Image, ImageTk
+import io
+import base64
 
 from image_processing import ImageProcessor, get_cached_image
 from part_edit_enhanced import EnhancedPartEditDialog
@@ -32,6 +34,9 @@ class ProductSelectorDialog(ctk.CTkToplevel):
         self.left_selection = []  # Selected items in left table
         self.right_selection = []  # Selected items in right table
 
+        # Store thumbnail images
+        self.thumbnail_images = {}  # Cache dla miniatur
+
         self.title("Wybór produktów do zamówienia/oferty")
         self.geometry("1400x800")
 
@@ -48,6 +53,42 @@ class ProductSelectorDialog(ctk.CTkToplevel):
         x = (self.winfo_screenwidth() // 2) - 700
         y = (self.winfo_screenheight() // 2) - 400
         self.geometry(f"+{x}+{y}")
+
+    def get_thumbnail_image(self, product_id: str, thumbnail_data):
+        """Pobierz lub utwórz miniaturę dla produktu"""
+        # Sprawdź cache
+        if product_id in self.thumbnail_images:
+            return self.thumbnail_images[product_id]
+
+        # Jeśli brak danych miniatury, użyj domyślnej ikony
+        if not thumbnail_data:
+            return None
+
+        try:
+            # Konwertuj BYTEA na obraz
+            if isinstance(thumbnail_data, (bytes, bytearray)):
+                img = Image.open(io.BytesIO(thumbnail_data))
+            elif isinstance(thumbnail_data, str):
+                # Jeśli to base64
+                img_data = base64.b64decode(thumbnail_data)
+                img = Image.open(io.BytesIO(img_data))
+            else:
+                return None
+
+            # Przeskaluj do 20x20 dla tabeli
+            img.thumbnail((20, 20), Image.Resampling.LANCZOS)
+
+            # Konwertuj na PhotoImage
+            photo = ImageTk.PhotoImage(img)
+
+            # Zapisz w cache
+            self.thumbnail_images[product_id] = photo
+
+            return photo
+
+        except Exception as e:
+            print(f"Błąd ładowania miniatury dla {product_id}: {e}")
+            return None
 
     def setup_ui(self):
         """Setup UI with dual tables"""
@@ -380,14 +421,29 @@ class ProductSelectorDialog(ctk.CTkToplevel):
             additional = product.get('additional_costs', 0) or 0
             cost = f"{bending + additional:.2f} PLN"
 
-            # Insert with icon
-            icon = "📦" if product.get('graphic_low_res') else "📄"
-            tree.insert(
-                "", "end",
-                text=icon,
-                values=(idx, name, material, thickness, qty, cost),
-                tags=(product['id'],)
+            # Pobierz miniaturę jeśli dostępna
+            thumbnail = self.get_thumbnail_image(
+                product['id'],
+                product.get('thumbnail_100')
             )
+
+            # Insert with thumbnail or icon
+            if thumbnail:
+                item = tree.insert(
+                    "", "end",
+                    image=thumbnail,
+                    values=(idx, name, material, thickness, qty, cost),
+                    tags=(product['id'],)
+                )
+            else:
+                # Użyj ikony tekstowej jeśli brak miniatury
+                icon = "📦" if product.get('_source') == 'catalog' else "📄"
+                item = tree.insert(
+                    "", "end",
+                    text=icon,
+                    values=(idx, name, material, thickness, qty, cost),
+                    tags=(product['id'],)
+                )
 
     def populate_right_table(self):
         """Populate right table with selected products"""
@@ -416,13 +472,28 @@ class ProductSelectorDialog(ctk.CTkToplevel):
             additional = product.get('additional_costs', 0) or 0
             cost = f"{bending + additional:.2f} PLN"
 
-            icon = "✓"
-            tree.insert(
-                "", "end",
-                text=icon,
-                values=(idx, name, material, thickness, qty, cost),
-                tags=(product.get('id', ''),)
+            # Pobierz miniaturę jeśli dostępna
+            thumbnail = self.get_thumbnail_image(
+                product.get('id', ''),
+                product.get('thumbnail_100')
             )
+
+            # Insert with thumbnail or icon
+            if thumbnail:
+                tree.insert(
+                    "", "end",
+                    image=thumbnail,
+                    values=(idx, name, material, thickness, qty, cost),
+                    tags=(product.get('id', ''),)
+                )
+            else:
+                icon = "✓"
+                tree.insert(
+                    "", "end",
+                    text=icon,
+                    values=(idx, name, material, thickness, qty, cost),
+                    tags=(product.get('id', ''),)
+                )
 
     def apply_filter(self, event=None):
         """Apply name filter to products"""

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Products Management Module
-Comprehensive product/parts management with filters, search, and graphics display
+Products Management Module V2 - z poprawioną obsługą miniatur binarnych
 """
 
 import customtkinter as ctk
@@ -10,14 +9,16 @@ from tkinter import messagebox
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from PIL import Image, ImageTk
+import io
+import base64
 
-from image_processing import ImageProcessor, get_cached_image
+from image_processing import ImageProcessor
 from materials_dict_module import MaterialsDictDialog
-from part_edit_enhanced import EnhancedPartEditDialog
+from part_edit_enhanced_v3 import EnhancedPartEditDialogV3
 
 
-class ProductsWindow(ctk.CTkToplevel):
-    """Main products management window with filters and product list"""
+class ProductsWindowV2(ctk.CTkToplevel):
+    """Main products management window with fixed thumbnail display"""
 
     def __init__(self, parent, db):
         super().__init__(parent)
@@ -26,7 +27,7 @@ class ProductsWindow(ctk.CTkToplevel):
         self.filtered_products = []
         self.selected_product_id = None
 
-        self.title("Zarządzanie produktami (detalami)")
+        self.title("Zarządzanie produktami (detalami) V2")
         self.geometry("1400x800")
 
         # Make modal
@@ -49,7 +50,7 @@ class ProductsWindow(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             header,
-            text="📦 Zarządzanie produktami",
+            text="📦 Zarządzanie produktami V2",
             font=ctk.CTkFont(size=24, weight="bold")
         ).pack(side="left", padx=10)
 
@@ -198,11 +199,24 @@ class ProductsWindow(ctk.CTkToplevel):
             if hasattr(self, 'status_bar') and self.status_bar.winfo_exists():
                 self.status_bar.configure(text="Ładowanie produktów...")
 
-            # Load parts with joined data
-            response = self.db.client.table('v_parts_full').select("*").order('created_at', desc=True).execute()
+            # Load from products_catalog
+            response = self.db.client.table('products_catalog').select("*").order('created_at', desc=True).execute()
             self.products_data = response.data
-            self.filtered_products = self.products_data
 
+            # Also load parts if needed (from v_parts_full view if exists)
+            try:
+                parts_response = self.db.client.table('v_parts_full').select("*").order('created_at', desc=True).execute()
+                # Add source field to distinguish
+                for part in parts_response.data:
+                    part['_source'] = 'parts'
+                for product in self.products_data:
+                    product['_source'] = 'catalog'
+                self.products_data.extend(parts_response.data)
+            except:
+                # View might not exist, just use products_catalog
+                pass
+
+            self.filtered_products = self.products_data
             self.display_products(self.filtered_products)
 
             if hasattr(self, 'status_bar') and self.status_bar.winfo_exists():
@@ -321,16 +335,28 @@ class ProductsWindow(ctk.CTkToplevel):
         image_frame.pack(side="left", padx=5)
         image_frame.bind("<Button-1>", lambda e, p=product: self.select_product(p))
 
-        # Try to load thumbnail
-        if product.get('graphic_low_res'):
+        # Try to load thumbnail from binary data
+        if product.get('thumbnail_100'):
             try:
-                img = get_cached_image(product['graphic_low_res'])
-                if img:
-                    photo = ImageProcessor.create_photoimage(img, (70, 50))
-                    image_frame.configure(image=photo)
-                    image_frame.image = photo
-            except:
-                pass
+                # Decode base64 if needed
+                thumbnail_data = product['thumbnail_100']
+                if isinstance(thumbnail_data, str):
+                    thumbnail_data = base64.b64decode(thumbnail_data)
+
+                # Create image from bytes
+                img = Image.open(io.BytesIO(thumbnail_data))
+                # Resize to fit frame
+                img.thumbnail((70, 50), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                image_frame.configure(image=photo)
+                image_frame.image = photo  # Keep reference
+            except Exception as e:
+                print(f"Error loading thumbnail: {e}")
+                # Show placeholder
+                self.show_placeholder_image(image_frame)
+        else:
+            # Show placeholder
+            self.show_placeholder_image(image_frame)
 
         # Index
         idx_label = ctk.CTkLabel(row, text=product.get('idx_code', '-'), width=100, anchor="w")
@@ -365,15 +391,14 @@ class ProductsWindow(ctk.CTkToplevel):
         qty_label.pack(side="left", padx=5)
         qty_label.bind("<Button-1>", lambda e, p=product: self.select_product(p))
 
-        # Customer (from joined order data)
-        # Note: This requires proper view/join in database
-        customer_text = "N/A"  # Placeholder
+        # Customer
+        customer_text = product.get('customer_name', 'N/A')
         customer_label = ctk.CTkLabel(row, text=customer_text, width=150, anchor="w")
         customer_label.pack(side="left", padx=5)
         customer_label.bind("<Button-1>", lambda e, p=product: self.select_product(p))
 
         # Order number
-        order_text = "N/A"  # Placeholder
+        order_text = product.get('process_no', 'N/A')
         order_label = ctk.CTkLabel(row, text=order_text, width=120, anchor="w")
         order_label.pack(side="left", padx=5)
         order_label.bind("<Button-1>", lambda e, p=product: self.select_product(p))
@@ -391,6 +416,16 @@ class ProductsWindow(ctk.CTkToplevel):
         date_label.pack(side="left", padx=5)
         date_label.bind("<Button-1>", lambda e, p=product: self.select_product(p))
 
+    def show_placeholder_image(self, label):
+        """Show placeholder image when no thumbnail"""
+        try:
+            placeholder = Image.new('RGB', (70, 50), color='#f0f0f0')
+            photo = ImageTk.PhotoImage(placeholder)
+            label.configure(image=photo)
+            label.image = photo
+        except:
+            pass
+
     def select_product(self, product: Dict):
         """Select a product"""
         self.selected_product_id = product['id']
@@ -401,7 +436,7 @@ class ProductsWindow(ctk.CTkToplevel):
     def view_product_details(self, product: Dict):
         """View product details (double-click)"""
         # Create a detail view dialog
-        detail_window = ProductDetailDialog(self, self.db, product)
+        detail_window = ProductDetailDialogV2(self, self.db, product)
 
     def open_materials_dict(self):
         """Open materials dictionary"""
@@ -410,7 +445,7 @@ class ProductsWindow(ctk.CTkToplevel):
 
     def add_product(self):
         """Add new product"""
-        dialog = EnhancedPartEditDialog(
+        dialog = EnhancedPartEditDialogV3(
             self,
             self.db,
             [],  # Empty parts list for new product
@@ -419,45 +454,32 @@ class ProductsWindow(ctk.CTkToplevel):
             order_id=None
         )
         self.wait_window(dialog)
-
         # Reload products after adding
-        if hasattr(dialog, 'part_data') and dialog.part_data:
-            # Save to database
-            # Save to database
-            try:
-                part_data = dialog.part_data
-                response = self.db.client.table('parts').insert({
-                    'name': part_data['name'],
-                    'material_id': part_data.get('material_id'),
-                    'thickness_mm': part_data.get('thickness_mm'),
-                    'qty': part_data.get('qty', 1),
-                    'bending_cost': part_data.get('bending_cost', 0),
-                    'additional_costs': part_data.get('additional_costs', 0),
-                    'graphic_high_res': part_data.get('graphic_high_res'),
-                    'graphic_low_res': part_data.get('graphic_low_res'),
-                    'documentation_path': part_data.get('documentation_path')
-                }).execute()
-
-                messagebox.showinfo("Sukces", "Produkt został dodany")
-                self.load_products()
-            except Exception as e:
-                messagebox.showerror("Błąd", f"Nie można dodać produktu:\n{e}")
+        self.load_products()
 
     def edit_product(self, product: Dict):
         """Edit selected product"""
-        dialog = EnhancedPartEditDialog(
-            self,
-            self.db,
-            [],
-            part_data=product,
-            part_index=None,
-            order_id=None
-        )
-        self.wait_window(dialog)
+        # Need to load binary data first
+        try:
+            # Load full product data with binary fields
+            if product.get('_source') == 'parts':
+                full_data = self.db.client.table('parts').select('*').eq('id', product['id']).single().execute()
+            else:
+                full_data = self.db.client.table('products_catalog').select('*').eq('id', product['id']).single().execute()
 
-        # Reload products after edit
-        if hasattr(dialog, 'part_data') and dialog.part_data:
+            dialog = EnhancedPartEditDialogV3(
+                self,
+                self.db,
+                [],
+                part_data=full_data.data,
+                part_index=None,
+                order_id=None
+            )
+            self.wait_window(dialog)
+            # Reload products after edit
             self.load_products()
+        except Exception as e:
+            messagebox.showerror("Błąd", f"Nie można wczytać danych produktu:\n{e}")
 
     def duplicate_product(self, product: Dict):
         """Duplicate selected product"""
@@ -469,7 +491,10 @@ class ProductsWindow(ctk.CTkToplevel):
             new_product['name'] = f"{product['name']} - kopia"
 
             # Save to database
-            response = self.db.client.table('parts').insert(new_product).execute()
+            if product.get('_source') == 'parts':
+                response = self.db.client.table('parts').insert(new_product).execute()
+            else:
+                response = self.db.client.table('products_catalog').insert(new_product).execute()
 
             messagebox.showinfo("Sukces", "Produkt został zduplikowany")
             self.load_products()
@@ -485,7 +510,10 @@ class ProductsWindow(ctk.CTkToplevel):
 
         if result:
             try:
-                self.db.client.table('parts').delete().eq('id', product['id']).execute()
+                if product.get('_source') == 'parts':
+                    self.db.client.table('parts').delete().eq('id', product['id']).execute()
+                else:
+                    self.db.client.table('products_catalog').delete().eq('id', product['id']).execute()
                 messagebox.showinfo("Sukces", "Produkt został usunięty")
                 self.load_products()
             except Exception as e:
@@ -510,8 +538,8 @@ class ProductsWindow(ctk.CTkToplevel):
         menu.post(event.x_root, event.y_root)
 
 
-class ProductDetailDialog(ctk.CTkToplevel):
-    """Dialog showing detailed product information"""
+class ProductDetailDialogV2(ctk.CTkToplevel):
+    """Dialog showing detailed product information with binary files"""
 
     def __init__(self, parent, db, product: Dict):
         super().__init__(parent)
@@ -556,24 +584,25 @@ class ProductDetailDialog(ctk.CTkToplevel):
         image_label = ctk.CTkLabel(left_frame, text="")
         image_label.pack(pady=10)
 
-        # Try to load high-res image
-        if self.product.get('graphic_high_res'):
+        # Try to load thumbnail or preview
+        if self.product.get('thumbnail_100'):
             try:
-                img = get_cached_image(self.product['graphic_high_res'])
-                if img:
-                    photo = ImageProcessor.create_photoimage(img, (400, 400))
-                    image_label.configure(image=photo)
-                    image_label.image = photo
-            except:
-                placeholder = ImageProcessor.create_placeholder_image((400, 400))
-                photo = ImageTk.PhotoImage(placeholder)
+                # Decode base64 if needed
+                thumbnail_data = self.product['thumbnail_100']
+                if isinstance(thumbnail_data, str):
+                    thumbnail_data = base64.b64decode(thumbnail_data)
+
+                img = Image.open(io.BytesIO(thumbnail_data))
+                # Scale up for detail view
+                img = img.resize((400, 400), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
                 image_label.configure(image=photo)
                 image_label.image = photo
+            except Exception as e:
+                print(f"Error loading thumbnail in detail view: {e}")
+                self.show_placeholder(image_label)
         else:
-            placeholder = ImageProcessor.create_placeholder_image((400, 400))
-            photo = ImageTk.PhotoImage(placeholder)
-            image_label.configure(image=photo)
-            image_label.image = photo
+            self.show_placeholder(image_label)
 
         # Right side - Details
         right_frame = ctk.CTkScrollableFrame(content)
@@ -586,20 +615,25 @@ class ProductDetailDialog(ctk.CTkToplevel):
         self.add_detail_row(right_frame, "Kategoria materiału:", self.product.get('material_category', '-'))
         self.add_detail_row(right_frame, "Grubość:", f"{self.product.get('thickness_mm', '-')} mm")
         self.add_detail_row(right_frame, "Ilość:", str(self.product.get('qty', '-')))
+
+        # Costs
+        self.add_detail_row(right_frame, "Koszt materiału i cięcia:", f"{self.product.get('material_laser_cost', 0):.2f} PLN")
         self.add_detail_row(right_frame, "Koszt gięcia:", f"{self.product.get('bending_cost', 0):.2f} PLN")
         self.add_detail_row(right_frame, "Koszty dodatkowe:", f"{self.product.get('additional_costs', 0):.2f} PLN")
 
+        # Files
+        if self.product.get('cad_2d_filename'):
+            self.add_detail_row(right_frame, "Plik 2D:", self.product['cad_2d_filename'])
+        if self.product.get('cad_3d_filename'):
+            self.add_detail_row(right_frame, "Plik 3D:", self.product['cad_3d_filename'])
+        if self.product.get('user_image_filename'):
+            self.add_detail_row(right_frame, "Grafika użytkownika:", self.product['user_image_filename'])
+
+        if self.product.get('primary_graphic_source'):
+            self.add_detail_row(right_frame, "Główne źródło grafiki:", self.product['primary_graphic_source'])
+
         if self.product.get('duplicate_number', 0) > 0:
             self.add_detail_row(right_frame, "Duplikat:", f"Numer {self.product['duplicate_number']}", text_color="#ff9800")
-
-        # Documentation
-        if self.product.get('documentation_path'):
-            self.add_detail_row(right_frame, "Dokumentacja:", Path(self.product['documentation_path']).name)
-
-        # Change history
-        if self.product.get('change_history'):
-            ctk.CTkLabel(right_frame, text="\nHistoria zmian:", font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=5)
-            # TODO: Display change history from JSONB
 
         # Buttons
         btn_frame = ctk.CTkFrame(self)
@@ -612,6 +646,19 @@ class ProductDetailDialog(ctk.CTkToplevel):
             command=self.destroy
         ).pack(side="right", padx=5)
 
+    def show_placeholder(self, label):
+        """Show placeholder image"""
+        try:
+            placeholder = Image.new('RGB', (400, 400), color='#f0f0f0')
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(placeholder)
+            draw.text((150, 190), "Brak grafiki", fill='#999999')
+            photo = ImageTk.PhotoImage(placeholder)
+            label.configure(image=photo)
+            label.image = photo
+        except:
+            pass
+
     def add_detail_row(self, parent, label: str, value: str, text_color=None):
         """Add a detail row"""
         row = ctk.CTkFrame(parent)
@@ -619,3 +666,7 @@ class ProductDetailDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(row, text=label, width=150, font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
         ctk.CTkLabel(row, text=value, anchor="w", text_color=text_color).pack(side="left", padx=5, fill="x", expand=True)
+
+
+# Alias for compatibility
+ProductsWindow = ProductsWindowV2
