@@ -18,6 +18,22 @@ from image_processing import ImageProcessor, get_cached_image
 from part_edit_enhanced import EnhancedPartEditDialog
 
 
+def fix_base64_padding(data: str) -> str:
+    """Fix base64 string padding if needed"""
+    if not data:
+        return data
+
+    # Remove any whitespace or newlines
+    data = data.strip()
+
+    # Add padding if needed
+    padding_needed = len(data) % 4
+    if padding_needed:
+        data += '=' * (4 - padding_needed)
+
+    return data
+
+
 class ProductSelectorDialog(ctk.CTkToplevel):
     """Product selector with dual tables for orders/quotes"""
 
@@ -70,7 +86,8 @@ class ProductSelectorDialog(ctk.CTkToplevel):
                 img = Image.open(io.BytesIO(thumbnail_data))
             elif isinstance(thumbnail_data, str):
                 # Jeśli to base64
-                img_data = base64.b64decode(thumbnail_data)
+                fixed_base64 = fix_base64_padding(thumbnail_data)
+                img_data = base64.b64decode(fixed_base64)
                 img = Image.open(io.BytesIO(img_data))
             else:
                 return None

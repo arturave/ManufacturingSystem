@@ -77,11 +77,6 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Database Scripts -->
-    <Content Include="screenshots\1.jpg" />
-    <Content Include="screenshots\2.jpg" />
-    <Content Include="screenshots\3.jpg" />
-    <Content Include="screenshots\4.jpg" />
-    <Content Include="screenshots\table.jpg" />
     <Content Include="setup_database.sql">
       <SubType>Content</SubType>
     </Content>
