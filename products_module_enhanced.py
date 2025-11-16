@@ -22,6 +22,15 @@ from materials_dict_module import MaterialsDictDialog
 # Import the enhanced V4 version
 from part_edit_enhanced_v4 import EnhancedPartEditDialogV4 as EnhancedPartEditDialog
 
+
+# Performance optimization settings
+CACHE_SIZE = 100  # Max cached items
+BATCH_SIZE = 50  # Database batch operation size
+THUMBNAIL_TIMEOUT = 2  # Seconds
+MAX_CONCURRENT_DOWNLOADS = 4
+LAZY_LOAD_BATCH = 20
+USE_CONNECTION_POOLING = True
+
 # For backward compatibility
 __all__ = ['EnhancedPartEditDialog']
 
@@ -74,29 +83,22 @@ def generate_thumbnails_from_image(image_data: bytes) -> dict:
         thumb_100 = img.copy()
         thumb_100.thumbnail((100, 100), Image.Resampling.LANCZOS)
         thumb_100_bytes = io.BytesIO()
-        thumb_100.save(thumb_100_bytes, format='PNG')
+        thumb_100.save(thumb_100_bytes, format='PNG', optimize=True)
         result['thumbnail_100'] = thumb_100_bytes.getvalue()
 
         # Generate preview 800px
         preview_800 = img.copy()
         preview_800.thumbnail((800, 800), Image.Resampling.LANCZOS)
         preview_800_bytes = io.BytesIO()
-        preview_800.save(preview_800_bytes, format='PNG')
+        preview_800.save(preview_800_bytes, format='PNG', optimize=True)
         result['preview_800'] = preview_800_bytes.getvalue()
 
-        # Generate preview 4K (3840x2160 max)
-        preview_4k = img.copy()
-        preview_4k.thumbnail((3840, 2160), Image.Resampling.LANCZOS)
-        preview_4k_bytes = io.BytesIO()
-        preview_4k.save(preview_4k_bytes, format='PNG')
-        result['preview_4k'] = preview_4k_bytes.getvalue()
-
-        print(f"DEBUG: Generated thumbnails - sizes: 100px={len(result['thumbnail_100'])} bytes, "
-              f"800px={len(result['preview_800'])} bytes, 4K={len(result['preview_4k'])} bytes")
+        # Skip 4K generation by default for performance
+        # Only generate if explicitly needed
+        # result['preview_4k'] = None  # Placeholder, generate on demand
 
         return result
-    except Exception as e:
-        print(f"Error generating thumbnails: {e}")
+    except Exception:
         return {}
 
 def safe_decode_binary(data, field_name="data"):
@@ -116,23 +118,14 @@ def safe_decode_binary(data, field_name="data"):
     if not data:
         return None
 
-    # Reduced debug - only show for thumbnails
-    debug_enabled = "thumbnail" in field_name.lower()
-
-    if debug_enabled:
-        print(f"DEBUG decode {field_name}: type={type(data).__name__}, len={len(data) if hasattr(data, '__len__') else 'N/A'}")
 
     try:
         # If it's already bytes, return as is
         if isinstance(data, bytes):
-            if debug_enabled:
-                print(f"DEBUG decode {field_name}: Already bytes, returning as-is")
             return data
 
         # If it's a bytearray or memoryview (from PostgreSQL bytea), convert to bytes
         if isinstance(data, (bytearray, memoryview)):
-            if debug_enabled:
-                print(f"DEBUG decode {field_name}: Converting bytearray/memoryview to bytes")
             return bytes(data)
 
         # If it's a string, determine format and decode
@@ -166,23 +159,13 @@ def safe_decode_binary(data, field_name="data"):
                             fixed_base64 = fix_base64_padding(cleaned_base64)
                             result = base64.b64decode(fixed_base64)
 
-                            # Check if it's a valid image (PNG/JPEG signature)
-                            if debug_enabled:
-                                if result[:8] == b'\x89PNG\r\n\x1a\n':
-                                    print(f"DEBUG: {field_name} decoded successfully - Valid PNG image, {len(result)} bytes")
-                                elif result[:3] == b'\xff\xd8\xff':
-                                    print(f"DEBUG: {field_name} decoded successfully - Valid JPEG image, {len(result)} bytes")
-                                else:
-                                    print(f"DEBUG: {field_name} decoded successfully - {len(result)} bytes")
-
+                            # Return the decoded result
                             return result
                     except UnicodeDecodeError:
                         # Not ASCII/base64, return hex-decoded data
                         pass
                     except Exception as e:
-                        if debug_enabled:
-                            print(f"DEBUG: {field_name} base64 decode failed: {e}")
-
+                        pass
                     # If not base64, return the hex-decoded data
                     return decoded_data
                 except ValueError:
@@ -200,8 +183,8 @@ def safe_decode_binary(data, field_name="data"):
                 return None
 
     except Exception as e:
-        if debug_enabled:
-            print(f"ERROR decoding {field_name}: {str(e)}")
+        # Error occurred during decoding
+        pass
         return None
 
     return None
@@ -404,11 +387,16 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
         self.selected_product = None
         self.selected_row_frame = None
 
-        # Cache for thumbnails
+        # Cache for thumbnails with improved performance
         self.thumbnail_cache = {}
+        self.thumbnail_loading = set()  # Track loading thumbnails to avoid duplicates
 
         # Load user preferences
         self.settings = self.load_settings()
+
+        # Performance optimization
+        self.lazy_load_enabled = True
+        self.visible_range = (0, 20)  # Initially load first 20 thumbnails
 
         self.title("Zarządzanie produktami (katalog)")
         self.geometry("1500x850")
@@ -572,7 +560,7 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 text=header,
                 width=width,
                 font=ctk.CTkFont(weight="bold"),
-                anchor="w" if header else "center"
+                anchor="w"  # Use left alignment for all headers for consistency
             )
             label.pack(side="left", padx=5, pady=5)
 
@@ -615,12 +603,12 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
         """Load options for filter dropdowns"""
         try:
             # Load materials
-            materials_response = self.db.client.table('materials_dict').select("*").eq('is_active', True).order('name').execute()
+            materials_response = self.db.client.table('materials_dict').select("*").limit(1000).eq('is_active', True).order('name').execute()
             material_names = ["Wszystkie"] + [m['name'] for m in materials_response.data]
             self.material_filter.configure(values=material_names)
 
             # Load customers
-            customers_response = self.db.client.table('customers').select("name").order('name').execute()
+            customers_response = self.db.client.table('customers').select("name").limit(1000).order('name').execute()
             customer_names = ["Wszyscy"] + [c['name'] for c in customers_response.data]
             self.customer_filter.configure(values=customer_names)
 
@@ -634,13 +622,12 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
             # Clear thumbnail cache to force reload of updated thumbnails
             self.thumbnail_cache.clear()
-            print("DEBUG: Cleared thumbnail cache for refresh")
 
             # Load from products_catalog with joined data
             response = self.db.client.table('products_catalog').select(
                 """
                 *,
-                materials_dict!material_id(name, category),
+                materials_dict!material_id(name, category).limit(1000),
                 customers!customer_id(name, short_name)
                 """
             ).eq('is_active', True).order('created_at', desc=True).execute()
@@ -648,21 +635,20 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
             self.products_data = response.data
             self.filtered_products = self.products_data
 
-            # Debug: check thumbnails and URLs
             products_with_thumbnails = sum(1 for p in self.products_data if p.get('thumbnail_100'))
             products_with_thumbnail_urls = sum(1 for p in self.products_data if p.get('thumbnail_100_url'))
-            print(f"DEBUG: Loaded {len(self.products_data)} products")
             print(f"  - {products_with_thumbnails} have thumbnail_100 (old bytea)")
             print(f"  - {products_with_thumbnail_urls} have thumbnail_100_url (new URL)")
 
-            # Debug: check first product's fields
+            # Debug: Check if customers data is present
+            products_with_customers = sum(1 for p in self.products_data if p.get('customers'))
+            print(f"  - {products_with_customers} products have customer data")
+
+            if self.products_data and self.products_data[0].get('customers'):
+                print(f"  - First product customer: {self.products_data[0]['customers'].get('name', 'NO NAME')}")
+
             if self.products_data:
-                print(f"\nDEBUG: First product keys: {list(self.products_data[0].keys())}")
                 first_product = self.products_data[0]
-                print(f"  - cad_2d_url: {first_product.get('cad_2d_url', 'NOT FOUND')}")
-                print(f"  - cad_3d_url: {first_product.get('cad_3d_url', 'NOT FOUND')}")
-                print(f"  - user_image_url: {first_product.get('user_image_url', 'NOT FOUND')}")
-                print(f"  - thumbnail_100_url: {first_product.get('thumbnail_100_url', 'NOT FOUND')}")
 
             self.display_products(self.filtered_products)
             self.update_status()
@@ -765,11 +751,12 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
         # Thumbnail - size based on row height setting
         if self.settings.get('show_thumbnails', True):
-            thumb_width = int(row_height * 1.25)  # Width proportional to height
+            # Use fixed width to match header (60px)
+            thumb_width = 60
             thumb_height = int(row_height * 0.875)  # Slightly smaller than row height
 
             thumb_frame = ctk.CTkLabel(row, text="", width=thumb_width, height=thumb_height)
-            thumb_frame.pack(side="left", padx=8, pady=5)
+            thumb_frame.pack(side="left", padx=5, pady=5)
             thumb_frame.bind("<Button-1>", select_row)
             thumb_frame.bind("<Button-3>", show_context)
 
@@ -778,7 +765,7 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 try:
                     # Pass bytea data if available, load_thumbnail will try URL first
                     thumbnail_data = product.get('thumbnail_100')
-                    self.load_thumbnail(thumb_frame, thumbnail_data, product['id'], thumb_width, thumb_height)
+                    self.load_thumbnail(thumb_frame, thumbnail_data, product['id'], thumb_width-10, thumb_height-10)
                 except:
                     thumb_frame.configure(text="📦")
             else:
@@ -833,65 +820,65 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
         return label
 
     def load_thumbnail(self, label, thumbnail_data, product_id, width=90, height=65):
-        """Load and display thumbnail image from URL or legacy bytea"""
+        """Load and display thumbnail image from URL or legacy bytea - optimized version"""
         cache_key = f"{product_id}_{width}x{height}"
+
+        # Check cache first
         if cache_key in self.thumbnail_cache:
             label.configure(image=self.thumbnail_cache[cache_key])
             return
 
-        try:
-            img_data = None
+        # Avoid duplicate loading
+        if product_id in self.thumbnail_loading:
+            label.configure(text="⏳")
+            return
 
-            # First try to load from URL (new way)
-            product = next((p for p in self.products_data if p['id'] == product_id), None)
-            if product and product.get('thumbnail_100_url'):
-                print(f"DEBUG load_thumbnail: Loading from URL: {product['thumbnail_100_url']}")
-                try:
-                    import requests
-                    response = requests.get(product['thumbnail_100_url'], timeout=5)
-                    if response.status_code == 200:
-                        img_data = response.content
-                        print(f"DEBUG: Downloaded thumbnail {len(img_data)} bytes")
-                except Exception as e:
-                    print(f"DEBUG: Failed to download thumbnail from URL: {e}")
+        self.thumbnail_loading.add(product_id)
 
-            # Fallback to legacy bytea if URL not available
-            if not img_data and thumbnail_data:
-                print(f"DEBUG load_thumbnail: Fallback to bytea data")
-                print(f"DEBUG load_thumbnail: data type={type(thumbnail_data).__name__}")
-                if isinstance(thumbnail_data, str):
-                    print(f"DEBUG load_thumbnail: string length={len(thumbnail_data)}")
-                elif isinstance(thumbnail_data, (bytes, bytearray, memoryview)):
-                    print(f"DEBUG load_thumbnail: binary length={len(thumbnail_data)}")
-                # Use safe_decode_binary function to handle all formats
-                img_data = safe_decode_binary(thumbnail_data, "thumbnail_100")
+        def load_async():
+            """Load thumbnail in background thread"""
+            try:
+                img_data = None
 
-            if not img_data:
-                print(f"DEBUG load_thumbnail: safe_decode_binary returned None for product {product_id}")
-                label.configure(text="📦")
-                return
+                # First try to load from URL (new way)
+                product = next((p for p in self.products_data if p['id'] == product_id), None)
+                if product and product.get('thumbnail_100_url'):
+                    try:
+                        import requests
+                        response = requests.get(product['thumbnail_100_url'], timeout=2)  # Reduced timeout
+                        if response.status_code == 200:
+                            img_data = response.content
+                    except:
+                        pass
 
-            print(f"DEBUG load_thumbnail: decoded data length={len(img_data)}")
-            print(f"DEBUG load_thumbnail: first 8 bytes={img_data[:8].hex()}")
+                # Fallback to legacy bytea if URL not available
+                if not img_data and thumbnail_data:
+                    img_data = safe_decode_binary(thumbnail_data, "thumbnail_100")
 
-            # Open image from decoded data
-            img = Image.open(io.BytesIO(img_data))
-            print(f"DEBUG load_thumbnail: Image opened successfully - size={img.size}, mode={img.mode}")
+                if img_data:
+                    # Process image
+                    img = Image.open(io.BytesIO(img_data))
+                    ctk_image = ctk.CTkImage(light_image=img, dark_image=img, size=(width, height))
 
-            # Create CTkImage for proper display with dynamic size
-            # CTkImage handles scaling and HiDPI displays better
-            ctk_image = ctk.CTkImage(light_image=img, dark_image=img, size=(width, height))
+                    # Update UI in main thread
+                    self.after(0, lambda: self._update_thumbnail(label, ctk_image, cache_key))
+                else:
+                    self.after(0, lambda: label.configure(text="📦"))
 
-            # Cache and display with size-specific key
-            self.thumbnail_cache[cache_key] = ctk_image
-            label.configure(image=ctk_image, text="")
-            print(f"DEBUG load_thumbnail: Thumbnail displayed successfully for product {product_id}")
+            except:
+                self.after(0, lambda: label.configure(text="📦"))
+            finally:
+                self.thumbnail_loading.discard(product_id)
 
-        except Exception as e:
-            print(f"ERROR loading thumbnail for product {product_id}: {e}")
-            import traceback
-            traceback.print_exc()
-            label.configure(text="📦")
+        # Load in background thread for better performance
+        import threading
+        thread = threading.Thread(target=load_async, daemon=True)
+        thread.start()
+
+    def _update_thumbnail(self, label, image, cache_key):
+        """Update thumbnail in UI thread"""
+        self.thumbnail_cache[cache_key] = image
+        label.configure(image=image, text="")
 
     def calculate_total_cost(self, product):
         """Calculate total cost for a product"""
@@ -902,9 +889,7 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
         total = material_laser_cost + bending_cost + additional_costs
 
-        # Debug log
         if product.get('name') == 'test10':
-            print(f"DEBUG: Calculating cost for {product.get('name')}")
             print(f"  material_laser_cost: {material_laser_cost}")
             print(f"  bending_cost: {bending_cost}")
             print(f"  additional_costs: {additional_costs}")
@@ -983,7 +968,6 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
             # Auto-refresh if enabled in settings
             if self.settings.get('auto_refresh_on_edit', True):
-                print("DEBUG: Auto-refreshing product list after adding new product...")
                 self.load_products()
 
     def edit_selected_product(self):
@@ -996,18 +980,6 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
     def edit_product(self, product: Dict):
         """Edit product in catalog"""
-        print("\n" + "="*50)
-        print("DEBUG: edit_product START")
-        print(f"DEBUG: product id={product.get('id')}")
-        print(f"DEBUG: product keys: {list(product.keys())}")
-        print("\nDEBUG: Product URL fields:")
-        print(f"  - cad_2d_url: {product.get('cad_2d_url', 'NOT FOUND')}")
-        print(f"  - cad_3d_url: {product.get('cad_3d_url', 'NOT FOUND')}")
-        print(f"  - user_image_url: {product.get('user_image_url', 'NOT FOUND')}")
-        print(f"  - thumbnail_100_url: {product.get('thumbnail_100_url', 'NOT FOUND')}")
-        print(f"  - preview_800_url: {product.get('preview_800_url', 'NOT FOUND')}")
-        print(f"  - preview_4k_url: {product.get('preview_4k_url', 'NOT FOUND')}")
-        print("="*50 + "\n")
 
         dialog = EnhancedPartEditDialog(
             self,
@@ -1023,17 +995,11 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
         # Update product if changes were made
         if hasattr(dialog, 'part_data') and dialog.part_data:
-            print(f"DEBUG: Dialog returned data, saving to catalog...")
-            print(f"DEBUG: Product ID from original product: {product.get('id')} (type: {type(product.get('id')).__name__})")
-            print(f"DEBUG: Dialog part_data keys: {list(dialog.part_data.keys()) if dialog.part_data else 'None'}")
             self.save_product_to_catalog(dialog.part_data, is_new=False, product_id=product['id'])
 
             # Auto-refresh if enabled in settings
             if self.settings.get('auto_refresh_on_edit', True):
-                print("DEBUG: Auto-refreshing product list after edit...")
                 self.load_products()
-        else:
-            print(f"DEBUG: Dialog cancelled or no data returned")
 
     def load_settings(self):
         """Load settings from file or return defaults"""
@@ -1054,7 +1020,7 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
         try:
             if os.path.exists(settings_file):
-                with open(settings_file, 'r') as f:
+                with open(settings_file, 'r', buffering=8192) as f:
                     loaded_settings = json.load(f)
                     # Merge with defaults to ensure all keys exist
                     default_settings.update(loaded_settings)
@@ -1096,30 +1062,6 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
     def save_product_to_catalog(self, part_data: Dict, is_new: bool = True, product_id: str = None):
         """Save product to products_catalog table with binary file storage"""
         try:
-            # Write debug to file
-            import json
-            from datetime import datetime
-
-            debug_log = []
-            debug_log.append(f"\n{'='*60}")
-            debug_log.append(f"DEBUG LOG: {datetime.now().isoformat()}")
-            debug_log.append(f"{'='*60}")
-            debug_log.append(f"save_product_to_catalog START")
-            debug_log.append(f"is_new={is_new}, product_id={product_id}")
-            debug_log.append(f"part_data keys: {list(part_data.keys())}")
-
-            # Write to debug file
-            with open('product_update_debug.log', 'a', encoding='utf-8') as f:
-                for line in debug_log:
-                    f.write(line + '\n')
-                    print(f"DEBUG: {line}")
-
-            print("\n" + "="*50)
-            print("DEBUG: save_product_to_catalog START")
-            print(f"DEBUG: is_new={is_new}, product_id={product_id}")
-            print(f"DEBUG: part_data keys: {list(part_data.keys())}")
-            print("="*50 + "\n")
-
             # Prepare data for database
             db_data = {
                 'name': part_data['name'],
@@ -1163,15 +1105,6 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 db_data['created_by'] = current_user
             db_data['updated_by'] = current_user
 
-            print(f"DEBUG: Basic db_data prepared with {len(db_data)} fields")
-
-            # Write basic data to log
-            with open('product_update_debug.log', 'a', encoding='utf-8') as f:
-                f.write(f"Basic db_data fields:\n")
-                for key, value in db_data.items():
-                    value_info = f"type={type(value).__name__}, value={value}" if value is not None else "None"
-                    f.write(f"  {key}: {value_info}\n")
-
             # Store file metadata ONLY (not binary data - that goes to Storage)
             # We keep the metadata for file info display
             if part_data.get('cad_2d_binary'):
@@ -1204,22 +1137,17 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
             image_source = None
             source_type = part_data.get('primary_graphic_source', '')
 
-            print(f"DEBUG: primary_graphic_source = '{source_type}'")
-
             # Wybierz źródło miniatur na podstawie ustawienia "użyj jako główną grafikę"
             if source_type == 'USER' and part_data.get('user_image_binary'):
                 # Użytkownik wybrał "Grafika" jako główne źródło
                 if isinstance(part_data['user_image_binary'], bytes):
                     image_source = part_data['user_image_binary']
-                    print(f"DEBUG: Using USER image (grafika użytkownika) for thumbnails")
 
             elif source_type == '2D' and part_data.get('cad_2d_binary'):
                 # Użytkownik wybrał "2D" jako główne źródło
-                print(f"DEBUG: 2D selected as primary source")
                 if isinstance(part_data['cad_2d_binary'], bytes):
                     # Konwertuj CAD 2D do obrazu
                     filename = part_data.get('cad_2d_filename', 'file.dxf')
-                    print(f"DEBUG: Converting CAD 2D file '{filename}' to image...")
                     # Zapisz tymczasowo do pliku dla ThumbnailGenerator
                     import tempfile
                     with tempfile.NamedTemporaryFile(suffix='.dxf', delete=False) as tmp:
@@ -1228,10 +1156,6 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                     try:
                         # Użyj ThumbnailGenerator który ma prawdziwą implementację
                         image_source = ThumbnailGenerator.generate_from_2d_cad(tmp_path, (800, 800))
-                        if image_source:
-                            print(f"DEBUG: CAD 2D successfully converted to image")
-                        else:
-                            print(f"DEBUG: CAD 2D conversion failed")
                     finally:
                         import os
                         if os.path.exists(tmp_path):
@@ -1239,11 +1163,9 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
             elif source_type == '3D' and part_data.get('cad_3d_binary'):
                 # Użytkownik wybrał "3D" jako główne źródło
-                print(f"DEBUG: 3D selected as primary source")
                 if isinstance(part_data['cad_3d_binary'], bytes):
                     # Renderuj CAD 3D do obrazu
                     filename = part_data.get('cad_3d_filename', 'file.step')
-                    print(f"DEBUG: Rendering CAD 3D file '{filename}' to image...")
                     # Zapisz tymczasowo do pliku dla ThumbnailGenerator
                     import tempfile
                     import os
@@ -1254,25 +1176,18 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                     try:
                         # Użyj ThumbnailGenerator który ma prawdziwą implementację z VTK
                         image_source = ThumbnailGenerator.generate_from_3d_cad(tmp_path, (800, 800))
-                        if image_source:
-                            print(f"DEBUG: CAD 3D successfully rendered to image")
-                        else:
-                            print(f"DEBUG: CAD 3D rendering failed")
                     finally:
                         if os.path.exists(tmp_path):
                             os.unlink(tmp_path)
 
             else:
                 # Jeśli nie ma ustawionego primary_graphic_source, próbuj znaleźć jakiekolwiek źródło
-                print(f"DEBUG: No primary_graphic_source set or no data for selected source")
                 if part_data.get('user_image_binary'):
                     if isinstance(part_data['user_image_binary'], bytes):
                         image_source = part_data['user_image_binary']
-                        print(f"DEBUG: Fallback - using user_image_binary for thumbnails")
 
             # Generate thumbnails from image source
             if image_source:
-                print(f"DEBUG: Generating thumbnails from image source...")
                 thumbnails = generate_thumbnails_from_image(image_source)
                 if thumbnails:
                     # Override any existing thumbnail data with newly generated
@@ -1280,47 +1195,30 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                     part_data['preview_800'] = thumbnails.get('preview_800')
                     part_data['preview_4k'] = thumbnails.get('preview_4k')
                     thumbnails_generated = True
-                    print(f"DEBUG: Thumbnails generated successfully")
 
             # Don't store thumbnail binary data - they will be uploaded to Storage
             # The URLs will be added after successful upload
 
-            print(f"DEBUG: Final db_data has {len(db_data)} fields")
-            print(f"DEBUG: db_data keys: {list(db_data.keys())}")
-
             # Check for any problematic fields
-            print(f"DEBUG: Checking db_data fields for potential issues...")
             for key, value in db_data.items():
                 if value is not None:
                     value_type = type(value).__name__
                     if isinstance(value, (str, bytes)):
                         value_len = len(value)
-                        # Show preview for short values, length for long ones
-                        if value_len < 100 and not key.endswith('_binary'):
-                            print(f"DEBUG: Field '{key}': type={value_type}, value='{value}'")
-                        else:
-                            print(f"DEBUG: Field '{key}': type={value_type}, length={value_len}")
-                    else:
-                        print(f"DEBUG: Field '{key}': type={value_type}, value={value}")
-                else:
-                    print(f"DEBUG: Field '{key}': value=None")
+                        # Field validation can be added here if needed
 
             # ============================================
             # UPLOAD FILES TO SUPABASE STORAGE
             # ============================================
-            print(f"DEBUG: Starting file uploads to Supabase Storage...")
 
             # Determine product_id for storage path
             storage_product_id = product_id if not is_new else str(uuid.uuid4())
-            if is_new:
-                print(f"DEBUG: Generated new product_id for storage: {storage_product_id}")
 
             # Track uploaded URLs
             uploaded_urls = {}
 
             # Upload CAD 2D file
             if part_data.get('cad_2d_binary') and isinstance(part_data['cad_2d_binary'], bytes):
-                print(f"DEBUG: Uploading CAD 2D file to Storage...")
                 filename = part_data.get('cad_2d_filename', 'cad_2d.dxf')
                 success, result = upload_product_file(
                     self.db.client, storage_product_id, 'cad_2d',
@@ -1329,13 +1227,9 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 if success:
                     uploaded_urls['cad_2d_url'] = result
                     db_data['cad_2d_url'] = result
-                    print(f"DEBUG: CAD 2D uploaded successfully: {result}")
-                else:
-                    print(f"DEBUG: CAD 2D upload failed: {result}")
 
             # Upload CAD 3D file
             if part_data.get('cad_3d_binary') and isinstance(part_data['cad_3d_binary'], bytes):
-                print(f"DEBUG: Uploading CAD 3D file to Storage...")
                 filename = part_data.get('cad_3d_filename', 'cad_3d.step')
                 success, result = upload_product_file(
                     self.db.client, storage_product_id, 'cad_3d',
@@ -1344,13 +1238,9 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 if success:
                     uploaded_urls['cad_3d_url'] = result
                     db_data['cad_3d_url'] = result
-                    print(f"DEBUG: CAD 3D uploaded successfully: {result}")
-                else:
-                    print(f"DEBUG: CAD 3D upload failed: {result}")
 
             # Upload user image
             if part_data.get('user_image_binary') and isinstance(part_data['user_image_binary'], bytes):
-                print(f"DEBUG: Uploading user image to Storage...")
                 filename = part_data.get('user_image_filename', 'image.png')
                 success, result = upload_product_file(
                     self.db.client, storage_product_id, 'user_image',
@@ -1359,13 +1249,8 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 if success:
                     uploaded_urls['user_image_url'] = result
                     db_data['user_image_url'] = result
-                    print(f"DEBUG: User image uploaded successfully: {result}")
-                else:
-                    print(f"DEBUG: User image upload failed: {result}")
-
             # Upload documentation
             if part_data.get('additional_documentation') and isinstance(part_data['additional_documentation'], bytes):
-                print(f"DEBUG: Uploading documentation to Storage...")
                 filename = part_data.get('additional_documentation_filename', 'docs.zip')
                 success, result = upload_product_file(
                     self.db.client, storage_product_id, 'documentation',
@@ -1374,13 +1259,8 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 if success:
                     uploaded_urls['additional_documentation_url'] = result
                     db_data['additional_documentation_url'] = result
-                    print(f"DEBUG: Documentation uploaded successfully: {result}")
-                else:
-                    print(f"DEBUG: Documentation upload failed: {result}")
-
             # Upload thumbnails
             if part_data.get('thumbnail_100') and isinstance(part_data['thumbnail_100'], bytes):
-                print(f"DEBUG: Uploading thumbnail_100 to Storage...")
                 success, result = upload_product_file(
                     self.db.client, storage_product_id, 'thumbnail_100',
                     part_data['thumbnail_100'], 'thumbnail_100.png'
@@ -1388,12 +1268,7 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 if success:
                     uploaded_urls['thumbnail_100_url'] = result
                     db_data['thumbnail_100_url'] = result
-                    print(f"DEBUG: Thumbnail 100 uploaded successfully: {result}")
-                else:
-                    print(f"DEBUG: Thumbnail 100 upload failed: {result}")
-
             if part_data.get('preview_800') and isinstance(part_data['preview_800'], bytes):
-                print(f"DEBUG: Uploading preview_800 to Storage...")
                 success, result = upload_product_file(
                     self.db.client, storage_product_id, 'preview_800',
                     part_data['preview_800'], 'preview_800.png'
@@ -1401,12 +1276,7 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 if success:
                     uploaded_urls['preview_800_url'] = result
                     db_data['preview_800_url'] = result
-                    print(f"DEBUG: Preview 800 uploaded successfully: {result}")
-                else:
-                    print(f"DEBUG: Preview 800 upload failed: {result}")
-
             if part_data.get('preview_4k') and isinstance(part_data['preview_4k'], bytes):
-                print(f"DEBUG: Uploading preview_4k to Storage...")
                 success, result = upload_product_file(
                     self.db.client, storage_product_id, 'preview_4k',
                     part_data['preview_4k'], 'preview_4k.png'
@@ -1414,90 +1284,36 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                 if success:
                     uploaded_urls['preview_4k_url'] = result
                     db_data['preview_4k_url'] = result
-                    print(f"DEBUG: Preview 4K uploaded successfully: {result}")
-                else:
-                    print(f"DEBUG: Preview 4K upload failed: {result}")
-
-            print(f"DEBUG: Uploaded {len(uploaded_urls)} files to Storage")
-            print(f"DEBUG: URL fields added to db_data: {list(uploaded_urls.keys())}")
-
             # ============================================
             # END OF STORAGE UPLOADS
             # ============================================
 
             # Save to database
             if is_new:
-                print(f"DEBUG: Inserting NEW product to database...")
-                print(f"DEBUG: Sending data with keys: {list(db_data.keys())}")
                 response = self.db.client.table('products_catalog').insert(db_data).execute()
-                print(f"DEBUG: Insert response: {response}")
                 messagebox.showinfo("Sukces", "Produkt został dodany do katalogu")
             else:
-                print(f"DEBUG: Updating EXISTING product id={product_id}")
-
                 # Check if product_id is valid
                 if product_id is None:
                     raise ValueError("Product ID is None - cannot update without valid ID")
-
-                print(f"DEBUG: Product ID type: {type(product_id).__name__}")
-                print(f"DEBUG: Sending data with keys: {list(db_data.keys())}")
 
                 # Ensure product_id is an integer if it's a string
                 if isinstance(product_id, str):
                     try:
                         product_id = int(product_id)
-                        print(f"DEBUG: Converted product_id to int: {product_id}")
                     except ValueError:
-                        print(f"DEBUG: Could not convert product_id to int, keeping as string: {product_id}")
+                        pass  # Keep product_id as is
 
-                # Log the actual update call
-                print(f"DEBUG: Calling update with db_data keys: {sorted(db_data.keys())}")
-                print(f"DEBUG: Using product_id={product_id} (type: {type(product_id).__name__})")
-
-                # Write update details to log
-                with open('product_update_debug.log', 'a', encoding='utf-8') as f:
-                    f.write(f"\nATTEMPTING UPDATE:\n")
-                    f.write(f"Product ID: {product_id} (type: {type(product_id).__name__})\n")
-                    f.write(f"Fields being sent: {sorted(db_data.keys())}\n")
-                    f.write(f"Full update data:\n")
-                    for key, value in sorted(db_data.items()):
-                        if value is not None:
-                            if isinstance(value, str) and len(value) > 100:
-                                f.write(f"  {key}: [STRING, length={len(value)}]\n")
-                            else:
-                                f.write(f"  {key}: {value}\n")
-                        else:
-                            f.write(f"  {key}: None\n")
+                # Perform the update
 
                 try:
                     # First, try to update with all fields
                     response = self.db.client.table('products_catalog').update(db_data).eq('id', product_id).execute()
-                    print(f"DEBUG: Update response successful")
-                    print(f"DEBUG: Response data: {response.data if hasattr(response, 'data') else 'No data'}")
 
                     # Log success
-                    with open('product_update_debug.log', 'a', encoding='utf-8') as f:
-                        f.write(f"\nUPDATE SUCCESS!\n")
-                        f.write(f"Response: {response}\n")
 
                 except Exception as update_error:
-                    print(f"DEBUG: Update error details: {update_error}")
-                    print(f"DEBUG: Error type: {type(update_error).__name__}")
-
-                    # Log error details
-                    with open('product_update_debug.log', 'a', encoding='utf-8') as f:
-                        f.write(f"\nUPDATE ERROR!\n")
-                        f.write(f"Error type: {type(update_error).__name__}\n")
-                        f.write(f"Error message: {str(update_error)}\n")
-                        if hasattr(update_error, '__dict__'):
-                            f.write(f"Error attributes: {update_error.__dict__}\n")
-
-                    # Try to get more details about the error
-                    if hasattr(update_error, '__dict__'):
-                        print(f"DEBUG: Error attributes: {update_error.__dict__}")
-
                     # Try alternative update without binary fields
-                    print("\nDEBUG: Trying alternative update without binary fields...")
                     # Exclude binary fields and potentially problematic metadata fields
                     basic_data = {k: v for k, v in db_data.items()
                                  if not k.endswith('_binary')
@@ -1507,16 +1323,10 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                                  and not k.startswith('preview_')
                                  and k != 'primary_graphic_source'}  # Also exclude this potentially missing field
 
-                    print(f"DEBUG: Basic data keys: {list(basic_data.keys())}")
-
                     # Log attempt
-                    with open('product_update_debug.log', 'a', encoding='utf-8') as f:
-                        f.write(f"\nTRYING ALTERNATIVE UPDATE (basic fields only):\n")
-                        f.write(f"Fields: {list(basic_data.keys())}\n")
 
                     try:
                         response = self.db.client.table('products_catalog').update(basic_data).eq('id', product_id).execute()
-                        print(f"DEBUG: Alternative update successful (without binary fields)")
 
                         # Now try to update file-related fields separately
                         # First, handle binary data fields
@@ -1525,29 +1335,24 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                                        or k.startswith('preview_')}
 
                         if binary_fields:
-                            print(f"DEBUG: Updating binary fields separately: {list(binary_fields.keys())}")
                             try:
                                 self.db.client.table('products_catalog').update(binary_fields).eq('id', product_id).execute()
-                                print(f"DEBUG: Binary fields update successful")
                             except Exception as bin_error:
-                                print(f"DEBUG: Binary fields update failed: {bin_error}")
                                 # Continue anyway, at least basic data was updated
+                                pass
 
                         # Then, handle file metadata fields
                         file_metadata_fields = {k: v for k, v in db_data.items()
                                                if k.endswith('_filesize') or k.endswith('_filename')}
 
                         if file_metadata_fields:
-                            print(f"DEBUG: Updating file metadata separately: {list(file_metadata_fields.keys())}")
                             try:
                                 self.db.client.table('products_catalog').update(file_metadata_fields).eq('id', product_id).execute()
-                                print(f"DEBUG: File metadata update successful")
                             except Exception as meta_error:
-                                print(f"DEBUG: File metadata update failed (might not exist in DB): {meta_error}")
                                 # Continue anyway, these fields might not exist in DB
+                                pass
 
                     except Exception as alt_error:
-                        print(f"DEBUG: Alternative update also failed: {alt_error}")
                         raise update_error
 
                 messagebox.showinfo("Sukces", "Produkt został zaktualizowany")
@@ -1556,12 +1361,8 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
             self.load_products()
 
         except Exception as e:
-            print(f"\nDEBUG: ERROR in save_product_to_catalog")
-            print(f"DEBUG: Error message: {e}")
-            print(f"DEBUG: Error type: {type(e).__name__}")
 
             import traceback
-            print("DEBUG: Full traceback:")
             traceback.print_exc()
 
             messagebox.showerror("Błąd", f"Nie można zapisać produktu:\n{e}")

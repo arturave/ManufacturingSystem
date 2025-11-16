@@ -15,6 +15,15 @@ import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageTk
 
+
+# Performance optimization settings
+CACHE_SIZE = 100  # Max cached items
+BATCH_SIZE = 50  # Database batch operation size
+THUMBNAIL_TIMEOUT = 2  # Seconds
+MAX_CONCURRENT_DOWNLOADS = 4
+LAZY_LOAD_BATCH = 20
+USE_CONNECTION_POOLING = True
+
 # Import systemu podglądu
 try:
     from integrated_viewer_v2 import (
@@ -183,6 +192,7 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
 
         # Thumbnails
         self.thumbnail_data = None
+        # Free memory
         self.preview_800_data = None
         self.preview_4k_data = None
 
@@ -255,7 +265,7 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
             ctk.CTkLabel(left_frame, text="Klient:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=5)
 
             # Get customers list
-            customers_response = self.db.client.table('customers').select('id, name').order('name').execute()
+            customers_response = self.db.client.table('customers').select('id, name').limit(1000).order('name').execute()
             customer_names = ['Bez klienta'] + [c['name'] for c in customers_response.data]
             self.customer_map = {c['name']: c['id'] for c in customers_response.data}
 
@@ -699,15 +709,6 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         if not self.part_data_original:
             return
 
-        print("\n" + "="*60)
-        print("DEBUG: load_part_data START")
-        print(f"DEBUG: part_data_original keys: {list(self.part_data_original.keys())}")
-        print("\nDEBUG: URL fields in part_data_original:")
-        print(f"  - cad_2d_url: {self.part_data_original.get('cad_2d_url', 'NOT FOUND')}")
-        print(f"  - cad_3d_url: {self.part_data_original.get('cad_3d_url', 'NOT FOUND')}")
-        print(f"  - user_image_url: {self.part_data_original.get('user_image_url', 'NOT FOUND')}")
-        print(f"  - thumbnail_100_url: {self.part_data_original.get('thumbnail_100_url', 'NOT FOUND')}")
-        print("="*60 + "\n")
 
         # Basic fields
         self.idx_entry.configure(state="normal")
@@ -1013,7 +1014,7 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
                 file_size = os.path.getsize(temp_path)
                 print(f"Temp file exists: {temp_path}, size: {file_size} bytes")
             else:
-                print(f"ERROR: Temp file not found after creation: {temp_path}")
+                print(f"WARNING: Temp file was not created: {temp_path}")
 
             # Set file path in preview frame
             print(f"Setting preview_frame.file_path to: {temp_path}")

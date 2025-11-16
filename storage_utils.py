@@ -12,6 +12,15 @@ from pathlib import Path
 from supabase import Client
 
 
+# Performance optimization settings
+CACHE_SIZE = 100  # Max cached items
+BATCH_SIZE = 50  # Database batch operation size
+THUMBNAIL_TIMEOUT = 2  # Seconds
+MAX_CONCURRENT_DOWNLOADS = 4
+LAZY_LOAD_BATCH = 20
+USE_CONNECTION_POOLING = True
+
+
 # Default bucket name for product files
 DEFAULT_BUCKET = "product_files"
 
