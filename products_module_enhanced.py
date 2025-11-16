@@ -207,6 +207,192 @@ def safe_decode_binary(data, field_name="data"):
     return None
 
 
+class SettingsDialog(ctk.CTkToplevel):
+    """Settings dialog for customizing product list appearance"""
+
+    def __init__(self, parent, current_settings):
+        super().__init__(parent)
+        self.parent = parent
+        self.settings = current_settings.copy()  # Work with copy
+        self.result = None
+
+        self.title("Ustawienia listy produktów")
+        self.geometry("600x500")
+        self.transient(parent)
+        self.grab_set()
+
+        self.setup_ui()
+
+        # Center window
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - 300
+        y = (self.winfo_screenheight() // 2) - 250
+        self.geometry(f"+{x}+{y}")
+
+    def setup_ui(self):
+        """Setup settings UI"""
+        # Main container
+        main = ctk.CTkScrollableFrame(self)
+        main.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Title
+        ctk.CTkLabel(
+            main,
+            text="⚙️ Ustawienia wyświetlania",
+            font=ctk.CTkFont(size=20, weight="bold")
+        ).pack(pady=10)
+
+        # Row height setting
+        ctk.CTkLabel(main, text="Wysokość wierszy:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=(10, 5))
+
+        row_height_frame = ctk.CTkFrame(main)
+        row_height_frame.pack(fill="x", pady=5)
+
+        self.row_height_slider = ctk.CTkSlider(
+            row_height_frame,
+            from_=40,
+            to=120,
+            number_of_steps=40,
+            command=self.update_row_height_label
+        )
+        self.row_height_slider.set(self.settings.get('row_height', 80))
+        self.row_height_slider.pack(side="left", padx=5, fill="x", expand=True)
+
+        self.row_height_label = ctk.CTkLabel(row_height_frame, text=f"{self.settings.get('row_height', 80)}px")
+        self.row_height_label.pack(side="right", padx=10)
+
+        # Show thumbnails toggle
+        self.show_thumbnails_var = ctk.BooleanVar(value=self.settings.get('show_thumbnails', True))
+        ctk.CTkCheckBox(
+            main,
+            text="Wyświetlaj miniatury",
+            variable=self.show_thumbnails_var,
+            font=ctk.CTkFont(size=14)
+        ).pack(anchor="w", pady=10)
+
+        # Color settings
+        ctk.CTkLabel(main, text="Kolory wierszy:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=(10, 5))
+
+        color_frame = ctk.CTkFrame(main)
+        color_frame.pack(fill="x", pady=5)
+
+        # Even row color
+        even_frame = ctk.CTkFrame(color_frame)
+        even_frame.pack(side="left", padx=10)
+        ctk.CTkLabel(even_frame, text="Wiersze parzyste:").pack()
+        self.even_color_entry = ctk.CTkEntry(even_frame, width=100)
+        self.even_color_entry.insert(0, self.settings.get('even_row_color', '#2b2b2b'))
+        self.even_color_entry.pack()
+
+        # Odd row color
+        odd_frame = ctk.CTkFrame(color_frame)
+        odd_frame.pack(side="left", padx=10)
+        ctk.CTkLabel(odd_frame, text="Wiersze nieparzyste:").pack()
+        self.odd_color_entry = ctk.CTkEntry(odd_frame, width=100)
+        self.odd_color_entry.insert(0, self.settings.get('odd_row_color', '#252525'))
+        self.odd_color_entry.pack()
+
+        # Selected row color
+        selected_frame = ctk.CTkFrame(color_frame)
+        selected_frame.pack(side="left", padx=10)
+        ctk.CTkLabel(selected_frame, text="Zaznaczony wiersz:").pack()
+        self.selected_color_entry = ctk.CTkEntry(selected_frame, width=100)
+        self.selected_color_entry.insert(0, self.settings.get('selected_row_color', '#3a5f8a'))
+        self.selected_color_entry.pack()
+
+        # Font size setting
+        ctk.CTkLabel(main, text="Rozmiar czcionki:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=(10, 5))
+
+        font_frame = ctk.CTkFrame(main)
+        font_frame.pack(fill="x", pady=5)
+
+        self.font_size_slider = ctk.CTkSlider(
+            font_frame,
+            from_=10,
+            to=18,
+            number_of_steps=8,
+            command=self.update_font_size_label
+        )
+        self.font_size_slider.set(self.settings.get('font_size', 12))
+        self.font_size_slider.pack(side="left", padx=5, fill="x", expand=True)
+
+        self.font_size_label = ctk.CTkLabel(font_frame, text=f"{self.settings.get('font_size', 12)}pt")
+        self.font_size_label.pack(side="right", padx=10)
+
+        # Auto-refresh setting
+        self.auto_refresh_var = ctk.BooleanVar(value=self.settings.get('auto_refresh_on_edit', True))
+        ctk.CTkCheckBox(
+            main,
+            text="Automatyczne odświeżanie po edycji",
+            variable=self.auto_refresh_var,
+            font=ctk.CTkFont(size=14)
+        ).pack(anchor="w", pady=10)
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(self)
+        btn_frame.pack(fill="x", side="bottom", padx=10, pady=10)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="💾 Zapisz",
+            command=self.save_settings,
+            fg_color="#4CAF50"
+        ).pack(side="right", padx=5)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="↺ Przywróć domyślne",
+            command=self.reset_to_defaults,
+            fg_color="#FF9800"
+        ).pack(side="right", padx=5)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="❌ Anuluj",
+            command=self.cancel,
+            fg_color="#757575"
+        ).pack(side="right", padx=5)
+
+    def update_row_height_label(self, value):
+        """Update row height label"""
+        self.row_height_label.configure(text=f"{int(value)}px")
+
+    def update_font_size_label(self, value):
+        """Update font size label"""
+        self.font_size_label.configure(text=f"{int(value)}pt")
+
+    def save_settings(self):
+        """Save settings and close dialog"""
+        self.settings['row_height'] = int(self.row_height_slider.get())
+        self.settings['show_thumbnails'] = self.show_thumbnails_var.get()
+        self.settings['even_row_color'] = self.even_color_entry.get()
+        self.settings['odd_row_color'] = self.odd_color_entry.get()
+        self.settings['selected_row_color'] = self.selected_color_entry.get()
+        self.settings['font_size'] = int(self.font_size_slider.get())
+        self.settings['auto_refresh_on_edit'] = self.auto_refresh_var.get()
+
+        self.result = self.settings
+        self.destroy()
+
+    def reset_to_defaults(self):
+        """Reset to default settings"""
+        self.row_height_slider.set(80)
+        self.show_thumbnails_var.set(True)
+        self.even_color_entry.delete(0, "end")
+        self.even_color_entry.insert(0, "#2b2b2b")
+        self.odd_color_entry.delete(0, "end")
+        self.odd_color_entry.insert(0, "#252525")
+        self.selected_color_entry.delete(0, "end")
+        self.selected_color_entry.insert(0, "#3a5f8a")
+        self.font_size_slider.set(12)
+        self.auto_refresh_var.set(True)
+
+    def cancel(self):
+        """Cancel without saving"""
+        self.result = None
+        self.destroy()
+
+
 class EnhancedProductsWindow(ctk.CTkToplevel):
     """Enhanced products management window with better UI and functionality"""
 
@@ -633,22 +819,24 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
     def create_row_label(self, parent, text, width, click_handler, context_handler):
         """Helper to create row labels with consistent styling"""
+        font_size = self.settings.get('font_size', 12)
         label = ctk.CTkLabel(
             parent,
             text=text,
             width=width,
             anchor="w",
-            font=ctk.CTkFont(size=12)
+            font=ctk.CTkFont(size=font_size)
         )
         label.pack(side="left", padx=5)
         label.bind("<Button-1>", click_handler)
         label.bind("<Button-3>", context_handler)
         return label
 
-    def load_thumbnail(self, label, thumbnail_data, product_id):
+    def load_thumbnail(self, label, thumbnail_data, product_id, width=90, height=65):
         """Load and display thumbnail image from URL or legacy bytea"""
-        if product_id in self.thumbnail_cache:
-            label.configure(image=self.thumbnail_cache[product_id])
+        cache_key = f"{product_id}_{width}x{height}"
+        if cache_key in self.thumbnail_cache:
+            label.configure(image=self.thumbnail_cache[cache_key])
             return
 
         try:
@@ -690,12 +878,12 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
             img = Image.open(io.BytesIO(img_data))
             print(f"DEBUG load_thumbnail: Image opened successfully - size={img.size}, mode={img.mode}")
 
-            # Create CTkImage for proper display with larger size
+            # Create CTkImage for proper display with dynamic size
             # CTkImage handles scaling and HiDPI displays better
-            ctk_image = ctk.CTkImage(light_image=img, dark_image=img, size=(90, 65))  # Increased size
+            ctk_image = ctk.CTkImage(light_image=img, dark_image=img, size=(width, height))
 
-            # Cache and display
-            self.thumbnail_cache[product_id] = ctk_image
+            # Cache and display with size-specific key
+            self.thumbnail_cache[cache_key] = ctk_image
             label.configure(image=ctk_image, text="")
             print(f"DEBUG load_thumbnail: Thumbnail displayed successfully for product {product_id}")
 
@@ -730,13 +918,16 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
         if self.selected_row_frame:
             # Restore original color based on row index
             index = self.products_container.winfo_children().index(self.selected_row_frame)
-            original_color = "#2b2b2b" if index % 2 == 0 else "#252525"
+            even_color = self.settings.get('even_row_color', '#2b2b2b')
+            odd_color = self.settings.get('odd_row_color', '#252525')
+            original_color = even_color if index % 2 == 0 else odd_color
             self.selected_row_frame.configure(fg_color=original_color)
 
         # Select new
         self.selected_row_frame = row_frame
         self.selected_product = product
-        row_frame.configure(fg_color="#3a5f8a")  # Highlight color
+        selected_color = self.settings.get('selected_row_color', '#3a5f8a')
+        row_frame.configure(fg_color=selected_color)  # Highlight color
 
         # Update status
         self.status_bar.configure(
@@ -790,6 +981,11 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
         if hasattr(dialog, 'part_data') and dialog.part_data:
             self.save_product_to_catalog(dialog.part_data, is_new=True)
 
+            # Auto-refresh if enabled in settings
+            if self.settings.get('auto_refresh_on_edit', True):
+                print("DEBUG: Auto-refreshing product list after adding new product...")
+                self.load_products()
+
     def edit_selected_product(self):
         """Edit the selected product"""
         if not self.selected_product:
@@ -831,8 +1027,71 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
             print(f"DEBUG: Product ID from original product: {product.get('id')} (type: {type(product.get('id')).__name__})")
             print(f"DEBUG: Dialog part_data keys: {list(dialog.part_data.keys()) if dialog.part_data else 'None'}")
             self.save_product_to_catalog(dialog.part_data, is_new=False, product_id=product['id'])
+
+            # Auto-refresh if enabled in settings
+            if self.settings.get('auto_refresh_on_edit', True):
+                print("DEBUG: Auto-refreshing product list after edit...")
+                self.load_products()
         else:
             print(f"DEBUG: Dialog cancelled or no data returned")
+
+    def load_settings(self):
+        """Load settings from file or return defaults"""
+        import json
+        import os
+
+        settings_file = os.path.join(os.path.expanduser("~"), ".mfg_products_settings.json")
+
+        default_settings = {
+            'row_height': 80,
+            'show_thumbnails': True,
+            'even_row_color': '#2b2b2b',
+            'odd_row_color': '#252525',
+            'selected_row_color': '#3a5f8a',
+            'font_size': 12,
+            'auto_refresh_on_edit': True
+        }
+
+        try:
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    loaded_settings = json.load(f)
+                    # Merge with defaults to ensure all keys exist
+                    default_settings.update(loaded_settings)
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+
+        return default_settings
+
+    def save_settings_to_file(self):
+        """Save current settings to file"""
+        import json
+        import os
+
+        settings_file = os.path.join(os.path.expanduser("~"), ".mfg_products_settings.json")
+
+        try:
+            with open(settings_file, 'w') as f:
+                json.dump(self.settings, f, indent=2)
+            print(f"Settings saved to {settings_file}")
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+            messagebox.showerror("Błąd", f"Nie można zapisać ustawień: {e}")
+
+    def open_settings(self):
+        """Open settings dialog"""
+        dialog = SettingsDialog(self, self.settings)
+        self.wait_window(dialog)
+
+        if dialog.result:
+            # Apply new settings
+            self.settings = dialog.result
+            self.save_settings_to_file()
+
+            # Reload product list with new settings
+            self.display_products(self.filtered_products)
+
+            messagebox.showinfo("Ustawienia", "Ustawienia zostały zapisane i zastosowane.")
 
     def save_product_to_catalog(self, part_data: Dict, is_new: bool = True, product_id: str = None):
         """Save product to products_catalog table with binary file storage"""

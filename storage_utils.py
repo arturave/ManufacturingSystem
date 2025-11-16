@@ -7,7 +7,7 @@ Centralized module for file storage operations using Supabase Object Storage (S3
 
 import os
 import uuid
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 from pathlib import Path
 from supabase import Client
 
@@ -22,8 +22,8 @@ STORAGE_FOLDERS = {
     "preview_4k": "thumbnails/4k",
     "cad_2d": "cad/2d",
     "cad_3d": "cad/3d",
-    "user_image": "images",
-    "documentation": "docs"
+    "user_image": "user_images",  # Fixed to match actual usage
+    "documentation": "documentation"  # Fixed to match actual usage
 }
 
 # MIME type mapping
@@ -212,13 +212,65 @@ def extract_path_from_url(url: str, bucket: str = DEFAULT_BUCKET) -> Optional[st
         return None
 
 
+def delete_old_product_thumbnails(
+    client: Client,
+    product_id: str,
+    bucket: str = DEFAULT_BUCKET
+) -> Dict[str, bool]:
+    """
+    Delete old thumbnail files for a product before uploading new ones.
+
+    Args:
+        client: Supabase client instance
+        product_id: UUID of the product
+        bucket: Bucket name (default: product_files)
+
+    Returns:
+        Dict with thumbnail type as key and deletion success as value
+    """
+    results = {}
+    thumbnail_folders = {
+        'thumbnail_100': 'thumbnails/100',
+        'preview_800': 'thumbnails/800',
+        'preview_4k': 'thumbnails/4k'
+    }
+
+    for thumb_type, folder in thumbnail_folders.items():
+        try:
+            product_folder = f"{folder}/{product_id}"
+
+            # List all files in the product's thumbnail folder
+            files = client.storage.from_(bucket).list(product_folder)
+
+            if files:
+                # Delete each file found
+                for file in files:
+                    file_path = f"{product_folder}/{file['name']}"
+                    try:
+                        client.storage.from_(bucket).remove([file_path])
+                        print(f"Deleted old thumbnail: {file_path}")
+                    except Exception as e:
+                        print(f"Failed to delete {file_path}: {e}")
+
+                results[thumb_type] = True
+            else:
+                results[thumb_type] = True  # No files to delete is also success
+
+        except Exception as e:
+            print(f"Error listing/deleting old {thumb_type} files: {e}")
+            results[thumb_type] = False
+
+    return results
+
+
 def upload_product_file(
     client: Client,
     product_id: str,
     file_type: str,
     data: bytes,
     original_filename: str,
-    bucket: str = DEFAULT_BUCKET
+    bucket: str = DEFAULT_BUCKET,
+    delete_old: bool = True  # Changed default to True for thumbnails
 ) -> Tuple[bool, str]:
     """
     Convenience function to upload a product file with proper path generation.
@@ -230,10 +282,29 @@ def upload_product_file(
         data: Binary data to upload
         original_filename: Original filename for MIME type detection
         bucket: Bucket name (default: product_files)
+        delete_old: If True, delete old files before uploading (for thumbnails)
 
     Returns:
         Tuple of (success: bool, url_or_error: str)
     """
+    # For thumbnails, delete old files first if requested
+    if delete_old and file_type in ['thumbnail_100', 'preview_800', 'preview_4k']:
+        try:
+            folder = STORAGE_FOLDERS.get(file_type, None)
+            if folder:
+                product_folder = f"{folder}/{product_id}"
+                files = client.storage.from_(bucket).list(product_folder)
+                if files:
+                    for file in files:
+                        file_path = f"{product_folder}/{file['name']}"
+                        try:
+                            client.storage.from_(bucket).remove([file_path])
+                            print(f"Deleted old file before upload: {file_path}")
+                        except Exception as e:
+                            print(f"Warning: Could not delete old file {file_path}: {e}")
+        except Exception as e:
+            print(f"Warning: Could not clean up old {file_type} files: {e}")
+
     # Generate storage path
     storage_path = generate_storage_path(product_id, file_type, original_filename)
 
