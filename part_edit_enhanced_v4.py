@@ -349,6 +349,75 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         )
         self.total_cost_label.pack(side="right", padx=10, pady=8)
 
+        # === PARAMETRY FIZYCZNE ===
+        if self.catalog_mode:
+            ctk.CTkLabel(
+                left_frame,
+                text="📐 Parametry fizyczne",
+                font=ctk.CTkFont(size=16, weight="bold")
+            ).pack(anchor="w", pady=(10, 5))
+
+            # Dimensions frame
+            dims_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+            dims_frame.pack(fill="x", pady=5)
+
+            # Width
+            width_frame = ctk.CTkFrame(dims_frame, fg_color="transparent")
+            width_frame.pack(side="left", padx=(0, 10))
+            ctk.CTkLabel(width_frame, text="Szer. [mm]:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+            self.width_entry = ctk.CTkEntry(width_frame, width=100, height=30, placeholder_text="0.0")
+            self.width_entry.pack()
+
+            # Height
+            height_frame = ctk.CTkFrame(dims_frame, fg_color="transparent")
+            height_frame.pack(side="left", padx=(0, 10))
+            ctk.CTkLabel(height_frame, text="Wys. [mm]:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+            self.height_entry = ctk.CTkEntry(height_frame, width=100, height=30, placeholder_text="0.0")
+            self.height_entry.pack()
+
+            # Length
+            length_frame = ctk.CTkFrame(dims_frame, fg_color="transparent")
+            length_frame.pack(side="left")
+            ctk.CTkLabel(length_frame, text="Dł. [mm]:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+            self.length_entry = ctk.CTkEntry(length_frame, width=100, height=30, placeholder_text="0.0")
+            self.length_entry.pack()
+
+            # Weight and surface area
+            phys_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+            phys_frame.pack(fill="x", pady=5)
+
+            # Weight
+            weight_frame = ctk.CTkFrame(phys_frame, fg_color="transparent")
+            weight_frame.pack(side="left", padx=(0, 10))
+            ctk.CTkLabel(weight_frame, text="Waga [kg]:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+            self.weight_entry = ctk.CTkEntry(weight_frame, width=100, height=30, placeholder_text="0.000")
+            self.weight_entry.pack()
+
+            # Surface area
+            surface_frame = ctk.CTkFrame(phys_frame, fg_color="transparent")
+            surface_frame.pack(side="left")
+            ctk.CTkLabel(surface_frame, text="Pow. [m²]:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+            self.surface_entry = ctk.CTkEntry(surface_frame, width=100, height=30, placeholder_text="0.0000")
+            self.surface_entry.pack()
+
+            # Production time and machine type
+            prod_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+            prod_frame.pack(fill="x", pady=5)
+
+            # Production time
+            time_frame = ctk.CTkFrame(prod_frame, fg_color="transparent")
+            time_frame.pack(side="left", padx=(0, 10))
+            ctk.CTkLabel(time_frame, text="Czas prod. [min]:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+            self.prod_time_entry = ctk.CTkEntry(time_frame, width=100, height=30, placeholder_text="0")
+            self.prod_time_entry.pack()
+
+            # Machine type
+            machine_frame = ctk.CTkFrame(prod_frame, fg_color="transparent")
+            machine_frame.pack(side="left")
+            ctk.CTkLabel(machine_frame, text="Typ maszyny:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+            self.machine_type_entry = ctk.CTkEntry(machine_frame, width=150, height=30, placeholder_text="np. Laser CO2")
+            self.machine_type_entry.pack()
+
         # Notes field
         ctk.CTkLabel(left_frame, text="Uwagi:", font=ctk.CTkFont(size=14)).pack(anchor="w", pady=5)
         self.notes_text = ctk.CTkTextbox(left_frame, width=350, height=60)
@@ -387,9 +456,8 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         )
         self.frame_2d.pack(side="left", padx=10, fill="y")
 
-        # Add download button for 2D if in view/edit mode
-        if self.view_only:
-            self.add_download_button(self.frame_2d, "cad_2d")
+        # Add download button for 2D - always visible
+        self.add_download_button(self.frame_2d, "cad_2d")
 
         # 3D CAD Preview
         self.frame_3d = EnhancedFilePreviewFrame(
@@ -401,9 +469,8 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         )
         self.frame_3d.pack(side="left", padx=10, fill="y")
 
-        # Add download button for 3D if in view/edit mode
-        if self.view_only:
-            self.add_download_button(self.frame_3d, "cad_3d")
+        # Add download button for 3D - always visible
+        self.add_download_button(self.frame_3d, "cad_3d")
 
         # Grafika tab
         self.tabview.add("Grafika")
@@ -422,9 +489,8 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         )
         self.frame_user.pack(side="left", padx=10, fill="y")
 
-        # Add download button for user image if in view/edit mode
-        if self.view_only:
-            self.add_download_button(self.frame_user, "user_image")
+        # Add download button for user image - always visible
+        self.add_download_button(self.frame_user, "user_image")
 
         # Generated thumbnails preview
         thumb_frame = ctk.CTkFrame(graphics_container)
@@ -439,37 +505,36 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         ctk.CTkLabel(thumb_frame, text="Miniatura 100x100",
                     font=ctk.CTkFont(size=10)).pack()
 
-        # Add download buttons for thumbnails if in view/edit mode
-        if self.view_only:
-            thumb_download_frame = ctk.CTkFrame(thumb_frame)
-            thumb_download_frame.pack(pady=10)
+        # Add download buttons for thumbnails - always visible
+        thumb_download_frame = ctk.CTkFrame(thumb_frame)
+        thumb_download_frame.pack(pady=10)
 
-            self.download_thumb_button = ctk.CTkButton(
-                thumb_download_frame,
-                text="💾 Miniatura",
-                width=120,
-                height=28,
-                command=lambda: self.download_thumbnail("thumbnail_100")
-            )
-            self.download_thumb_button.pack(pady=2)
+        self.download_thumb_button = ctk.CTkButton(
+            thumb_download_frame,
+            text="💾 Miniatura",
+            width=120,
+            height=28,
+            command=lambda: self.download_thumbnail("thumbnail_100")
+        )
+        self.download_thumb_button.pack(pady=2)
 
-            self.download_preview_button = ctk.CTkButton(
-                thumb_download_frame,
-                text="💾 Podgląd 800px",
-                width=120,
-                height=28,
-                command=lambda: self.download_thumbnail("preview_800")
-            )
-            self.download_preview_button.pack(pady=2)
+        self.download_preview_button = ctk.CTkButton(
+            thumb_download_frame,
+            text="💾 Podgląd 800px",
+            width=120,
+            height=28,
+            command=lambda: self.download_thumbnail("preview_800")
+        )
+        self.download_preview_button.pack(pady=2)
 
-            self.download_4k_button = ctk.CTkButton(
-                thumb_download_frame,
-                text="💾 Podgląd 4K",
-                width=120,
-                height=28,
-                command=lambda: self.download_thumbnail("preview_4k")
-            )
-            self.download_4k_button.pack(pady=2)
+        self.download_4k_button = ctk.CTkButton(
+            thumb_download_frame,
+            text="💾 Podgląd 4K",
+            width=120,
+            height=28,
+            command=lambda: self.download_thumbnail("preview_4k")
+        )
+        self.download_4k_button.pack(pady=2)
 
         # Documentation tab
         self.tabview.add("Dokumentacja")
@@ -523,18 +588,14 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         )
         self.doc_clear_btn.pack(side="left", padx=5)
 
-        # Add download button for documentation if in view/edit mode
-        if self.view_only:
-            self.doc_download_btn = ctk.CTkButton(
-                doc_btn_frame,
-                text="💾 Pobierz",
-                width=100,
-                command=self.download_documentation
-            )
-            self.doc_download_btn.pack(side="left", padx=5)
-            # Initially hide if no documentation
-            if not hasattr(self, 'additional_doc_binary') or not self.additional_doc_binary:
-                self.doc_download_btn.pack_forget()
+        # Add download button for documentation - always visible
+        self.doc_download_btn = ctk.CTkButton(
+            doc_btn_frame,
+            text="💾 Pobierz",
+            width=100,
+            command=self.download_documentation
+        )
+        self.doc_download_btn.pack(side="left", padx=5)
 
         # Info about selected graphic source
         info_label = ctk.CTkLabel(
@@ -549,6 +610,8 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
             source = self.graphic_source_var.get()
             if source:
                 info_label.configure(text=f"✓ Główne źródło grafiki: {source}")
+                # Automatycznie generuj miniatury przy zmianie źródła
+                self.generate_and_update_thumbnails()
             else:
                 info_label.configure(text="⚠️ Wybierz źródło grafiki")
 
@@ -636,12 +699,22 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         if not self.part_data_original:
             return
 
+        print("\n" + "="*60)
+        print("DEBUG: load_part_data START")
+        print(f"DEBUG: part_data_original keys: {list(self.part_data_original.keys())}")
+        print("\nDEBUG: URL fields in part_data_original:")
+        print(f"  - cad_2d_url: {self.part_data_original.get('cad_2d_url', 'NOT FOUND')}")
+        print(f"  - cad_3d_url: {self.part_data_original.get('cad_3d_url', 'NOT FOUND')}")
+        print(f"  - user_image_url: {self.part_data_original.get('user_image_url', 'NOT FOUND')}")
+        print(f"  - thumbnail_100_url: {self.part_data_original.get('thumbnail_100_url', 'NOT FOUND')}")
+        print("="*60 + "\n")
+
         # Basic fields
         self.idx_entry.configure(state="normal")
-        self.idx_entry.insert(0, self.part_data_original.get('idx_code', ''))
+        self.idx_entry.insert(0, self.part_data_original.get('idx_code') or '')
         self.idx_entry.configure(state="disabled")
 
-        self.name_entry.insert(0, self.part_data_original.get('name', ''))
+        self.name_entry.insert(0, self.part_data_original.get('name') or '')
 
         # Customer (for catalog mode)
         if self.catalog_mode or not self.order_id:
@@ -663,10 +736,32 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         # Category and description (for catalog)
         if self.catalog_mode:
             if hasattr(self, 'category_entry') and self.part_data_original.get('category'):
-                self.category_entry.insert(0, self.part_data_original['category'])
+                self.category_entry.insert(0, self.part_data_original['category'] or '')
 
             if hasattr(self, 'description_text') and self.part_data_original.get('description'):
-                self.description_text.insert("1.0", self.part_data_original['description'])
+                self.description_text.insert("1.0", self.part_data_original['description'] or '')
+
+            # Physical parameters
+            if hasattr(self, 'width_entry') and self.part_data_original.get('width_mm'):
+                self.width_entry.insert(0, str(self.part_data_original['width_mm']))
+
+            if hasattr(self, 'height_entry') and self.part_data_original.get('height_mm'):
+                self.height_entry.insert(0, str(self.part_data_original['height_mm']))
+
+            if hasattr(self, 'length_entry') and self.part_data_original.get('length_mm'):
+                self.length_entry.insert(0, str(self.part_data_original['length_mm']))
+
+            if hasattr(self, 'weight_entry') and self.part_data_original.get('weight_kg'):
+                self.weight_entry.insert(0, str(self.part_data_original['weight_kg']))
+
+            if hasattr(self, 'surface_entry') and self.part_data_original.get('surface_area_m2'):
+                self.surface_entry.insert(0, str(self.part_data_original['surface_area_m2']))
+
+            if hasattr(self, 'prod_time_entry') and self.part_data_original.get('production_time_minutes'):
+                self.prod_time_entry.insert(0, str(self.part_data_original['production_time_minutes']))
+
+            if hasattr(self, 'machine_type_entry') and self.part_data_original.get('machine_type'):
+                self.machine_type_entry.insert(0, self.part_data_original['machine_type'])
 
         # Costs
         if self.part_data_original.get('material_laser_cost'):
@@ -680,73 +775,151 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
 
         # Notes
         if self.part_data_original.get('notes'):
-            self.notes_text.insert("1.0", self.part_data_original['notes'])
+            self.notes_text.insert("1.0", self.part_data_original['notes'] or '')
 
-        # Load files (binary data) - handle both bytea and base64
-        if self.part_data_original.get('cad_2d_binary'):
-            print(f"\n=== Loading CAD 2D Binary ===")
+        # Load files - try URL first, then fallback to binary
+        # CAD 2D
+        if self.part_data_original.get('cad_2d_url'):
+            print(f"\n=== Loading CAD 2D from URL ===")
+            print(f"URL: {self.part_data_original['cad_2d_url']}")
+            try:
+                import requests
+                response = requests.get(self.part_data_original['cad_2d_url'], timeout=10)
+                print(f"Response status: {response.status_code}")
+                print(f"Response headers: {dict(response.headers)}")
+                if response.status_code == 200:
+                    self.cad_2d_binary = response.content
+                    self.cad_2d_filename = self.part_data_original.get('cad_2d_filename', 'file.dxf')
+                    print(f"Downloaded {len(self.cad_2d_binary)} bytes")
+                    print(f"First 100 bytes: {self.cad_2d_binary[:100]}")
+                    self.load_binary_to_preview(self.cad_2d_binary, self.cad_2d_filename, self.frame_2d)
+                else:
+                    print(f"Failed to download: HTTP {response.status_code}")
+                    print(f"Response text: {response.text[:500]}")
+            except Exception as e:
+                print(f"Error downloading CAD 2D: {e}")
+                import traceback
+                traceback.print_exc()
+        elif self.part_data_original.get('cad_2d_binary'):
+            # Fallback to legacy bytea
+            print(f"\n=== Loading CAD 2D Binary (legacy) ===")
             raw_data = self.part_data_original['cad_2d_binary']
-            print(f"Raw data type: {type(raw_data)}")
-            if isinstance(raw_data, str):
-                print(f"Raw data length: {len(raw_data)} chars")
-                print(f"First 50 chars: {raw_data[:50]}")
+            if raw_data:  # Check if not None
+                print(f"Raw data type: {type(raw_data)}")
+                if isinstance(raw_data, str):
+                    print(f"Raw data length: {len(raw_data)} chars")
 
-            self.cad_2d_binary = safe_decode_binary(
-                raw_data,
-                field_name='cad_2d_binary'
-            )
+                self.cad_2d_binary = safe_decode_binary(
+                    raw_data,
+                    field_name='cad_2d_binary'
+                )
 
-            if self.cad_2d_binary:
-                print(f"Decoded to {len(self.cad_2d_binary)} bytes")
-                print(f"First 20 bytes: {self.cad_2d_binary[:20]}")
-                self.cad_2d_filename = self.part_data_original.get('cad_2d_filename', 'file.dxf')
-                # Create temp file for preview
-                self.load_binary_to_preview(self.cad_2d_binary, self.cad_2d_filename, self.frame_2d)
-            else:
-                print("Failed to decode CAD 2D binary")
+                if self.cad_2d_binary:
+                    print(f"Decoded to {len(self.cad_2d_binary)} bytes")
+                    self.cad_2d_filename = self.part_data_original.get('cad_2d_filename', 'file.dxf')
+                    self.load_binary_to_preview(self.cad_2d_binary, self.cad_2d_filename, self.frame_2d)
+                else:
+                    print("Failed to decode CAD 2D binary")
 
-        if self.part_data_original.get('cad_3d_binary'):
-            print(f"\n=== Loading CAD 3D Binary ===")
+        # CAD 3D
+        if self.part_data_original.get('cad_3d_url'):
+            print(f"\n=== Loading CAD 3D from URL ===")
+            print(f"URL: {self.part_data_original['cad_3d_url']}")
+            try:
+                import requests
+                response = requests.get(self.part_data_original['cad_3d_url'], timeout=10)
+                print(f"Response status: {response.status_code}")
+                print(f"Response headers: {dict(response.headers)}")
+                if response.status_code == 200:
+                    self.cad_3d_binary = response.content
+                    self.cad_3d_filename = self.part_data_original.get('cad_3d_filename', 'file.stp')
+                    print(f"Downloaded {len(self.cad_3d_binary)} bytes")
+                    print(f"First 100 bytes: {self.cad_3d_binary[:100]}")
+                    print(f"Calling load_binary_to_preview with frame_3d...")
+                    self.load_binary_to_preview(self.cad_3d_binary, self.cad_3d_filename, self.frame_3d)
+                else:
+                    print(f"Failed to download: HTTP {response.status_code}")
+                    print(f"Response text: {response.text[:500]}")
+            except Exception as e:
+                print(f"Error downloading CAD 3D: {e}")
+                import traceback
+                traceback.print_exc()
+        elif self.part_data_original.get('cad_3d_binary'):
+            print(f"\n=== Loading CAD 3D Binary (legacy) ===")
             raw_data = self.part_data_original['cad_3d_binary']
-            print(f"Raw data type: {type(raw_data)}")
-            if isinstance(raw_data, str):
-                print(f"Raw data length: {len(raw_data)} chars")
-                print(f"First 50 chars: {raw_data[:50]}")
+            if raw_data:  # Check if not None
+                print(f"Raw data type: {type(raw_data)}")
+                if isinstance(raw_data, str):
+                    print(f"Raw data length: {len(raw_data)} chars")
 
-            self.cad_3d_binary = safe_decode_binary(
-                raw_data,
-                field_name='cad_3d_binary'
-            )
-            if self.cad_3d_binary:
-                print(f"Decoded to {len(self.cad_3d_binary)} bytes")
-                print(f"First 20 bytes: {self.cad_3d_binary[:20]}")
-                self.cad_3d_filename = self.part_data_original.get('cad_3d_filename', 'file.stp')
-                self.load_binary_to_preview(self.cad_3d_binary, self.cad_3d_filename, self.frame_3d)
-            else:
-                print("Failed to decode CAD 3D binary")
+                self.cad_3d_binary = safe_decode_binary(
+                    raw_data,
+                    field_name='cad_3d_binary'
+                )
+                if self.cad_3d_binary:
+                    print(f"Decoded to {len(self.cad_3d_binary)} bytes")
+                    self.cad_3d_filename = self.part_data_original.get('cad_3d_filename', 'file.stp')
+                    self.load_binary_to_preview(self.cad_3d_binary, self.cad_3d_filename, self.frame_3d)
+                else:
+                    print("Failed to decode CAD 3D binary")
 
-        if self.part_data_original.get('user_image_binary'):
-            print(f"\n=== Loading User Image Binary ===")
+        # User Image
+        if self.part_data_original.get('user_image_url'):
+            print(f"\n=== Loading User Image from URL ===")
+            print(f"URL: {self.part_data_original['user_image_url']}")
+            try:
+                import requests
+                response = requests.get(self.part_data_original['user_image_url'], timeout=10)
+                if response.status_code == 200:
+                    self.user_image_binary = response.content
+                    self.user_image_filename = self.part_data_original.get('user_image_filename', 'image.png')
+                    print(f"Downloaded {len(self.user_image_binary)} bytes")
+                    self.load_binary_to_preview(self.user_image_binary, self.user_image_filename, self.frame_user)
+                else:
+                    print(f"Failed to download: HTTP {response.status_code}")
+            except Exception as e:
+                print(f"Error downloading User Image: {e}")
+        elif self.part_data_original.get('user_image_binary'):
+            print(f"\n=== Loading User Image Binary (legacy) ===")
             raw_data = self.part_data_original['user_image_binary']
-            print(f"Raw data type: {type(raw_data)}")
-            if isinstance(raw_data, str):
-                print(f"Raw data length: {len(raw_data)} chars")
-                print(f"First 50 chars: {raw_data[:50]}")
+            if raw_data:  # Check if not None
+                print(f"Raw data type: {type(raw_data)}")
+                if isinstance(raw_data, str):
+                    print(f"Raw data length: {len(raw_data)} chars")
 
-            self.user_image_binary = safe_decode_binary(
-                raw_data,
-                field_name='user_image_binary'
-            )
-            if self.user_image_binary:
-                print(f"Decoded to {len(self.user_image_binary)} bytes")
-                print(f"First 20 bytes (hex): {self.user_image_binary[:20].hex()}")
-                self.user_image_filename = self.part_data_original.get('user_image_filename', 'image.png')
-                self.load_binary_to_preview(self.user_image_binary, self.user_image_filename, self.frame_user)
-            else:
-                print("Failed to decode user image binary")
+                self.user_image_binary = safe_decode_binary(
+                    raw_data,
+                    field_name='user_image_binary'
+                )
+                if self.user_image_binary:
+                    print(f"Decoded to {len(self.user_image_binary)} bytes")
+                    self.user_image_filename = self.part_data_original.get('user_image_filename', 'image.png')
+                    self.load_binary_to_preview(self.user_image_binary, self.user_image_filename, self.frame_user)
+                else:
+                    print("Failed to decode user image binary")
 
         # Load documentation
-        if self.part_data_original.get('additional_documentation'):
+        if self.part_data_original.get('additional_documentation_url'):
+            print(f"\n=== Loading Documentation from URL ===")
+            print(f"URL: {self.part_data_original['additional_documentation_url']}")
+            try:
+                import requests
+                response = requests.get(self.part_data_original['additional_documentation_url'], timeout=30)
+                if response.status_code == 200:
+                    self.additional_doc_binary = response.content
+                    self.additional_doc_filename = self.part_data_original.get('additional_documentation_filename', 'docs.zip')
+                    print(f"Downloaded {len(self.additional_doc_binary)} bytes")
+                    # Update doc info label
+                    file_size = len(self.additional_doc_binary)
+                    self.doc_info_label.configure(
+                        text=f"📦 {self.additional_doc_filename}\n"
+                             f"Rozmiar: {file_size / 1024 / 1024:.2f} MB"
+                    )
+                else:
+                    print(f"Failed to download: HTTP {response.status_code}")
+            except Exception as e:
+                print(f"Error downloading documentation: {e}")
+        elif self.part_data_original.get('additional_documentation'):
             self.additional_doc_binary = safe_decode_binary(
                 self.part_data_original['additional_documentation'],
                 field_name='additional_documentation'
@@ -762,10 +935,23 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
                 if self.view_only and hasattr(self, 'doc_download_btn'):
                     self.doc_download_btn.pack(side="left", padx=5)
 
-        # Load thumbnail if exists
-        if self.part_data_original.get('thumbnail_100'):
+        # Load thumbnail if exists - try URL first, then bytea
+        if self.part_data_original.get('thumbnail_100_url'):
             try:
-                self.display_thumbnail(self.part_data_original['thumbnail_100'])
+                print(f"\n=== Loading thumbnail from URL ===")
+                print(f"URL: {self.part_data_original['thumbnail_100_url']}")
+                import requests
+                response = requests.get(self.part_data_original['thumbnail_100_url'], timeout=5)
+                if response.status_code == 200:
+                    self.display_thumbnail(response.content)
+                    print(f"Thumbnail loaded from URL")
+            except Exception as e:
+                print(f"Failed to load thumbnail from URL: {e}")
+        elif self.part_data_original.get('thumbnail_100'):
+            try:
+                # Legacy bytea
+                if self.part_data_original['thumbnail_100']:
+                    self.display_thumbnail(self.part_data_original['thumbnail_100'])
             except:
                 pass
 
@@ -778,7 +964,13 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
 
     def load_binary_to_preview(self, binary_data, filename, preview_frame):
         """Load binary data to preview frame via temporary file"""
+        print(f"\n=== load_binary_to_preview START ===")
+        print(f"Filename: {filename}")
+        print(f"Preview frame: {preview_frame}")
+        print(f"Preview frame type: {type(preview_frame)}")
+
         if not binary_data:
+            print("No binary data provided, returning")
             return
 
         try:
@@ -816,14 +1008,64 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
                 temp_path = tmp.name
                 print(f"Wrote {len(binary_data)} bytes to temp file: {temp_path}")
 
+            # Verify temp file was created
+            if os.path.exists(temp_path):
+                file_size = os.path.getsize(temp_path)
+                print(f"Temp file exists: {temp_path}, size: {file_size} bytes")
+            else:
+                print(f"ERROR: Temp file not found after creation: {temp_path}")
+
             # Set file path in preview frame
+            print(f"Setting preview_frame.file_path to: {temp_path}")
             preview_frame.file_path = temp_path
-            preview_frame.file_label.configure(text=Path(filename).name)
-            preview_frame.preview_button.configure(state="normal")
+            print(f"Preview frame now has file_path: {hasattr(preview_frame, 'file_path')}")
+
+            # Update label
+            print(f"Setting file_label text to: {Path(filename).name}")
+            if hasattr(preview_frame, 'file_label'):
+                preview_frame.file_label.configure(text=Path(filename).name)
+                print(f"Label updated successfully")
+            else:
+                print(f"WARNING: preview_frame has no file_label attribute")
+
+            # Enable preview button
+            print(f"Enabling preview button")
+            if hasattr(preview_frame, 'preview_button'):
+                preview_frame.preview_button.configure(state="normal")
+                print(f"Preview button enabled")
+            else:
+                print(f"WARNING: preview_frame has no preview_button attribute")
+
+            print(f"=== load_binary_to_preview SUCCESS ===\n")
+
+            # Mark file as loaded
+            preview_frame.file_loaded = True
+
+            # Update button states if they exist (not all preview frames have these buttons)
+            if hasattr(preview_frame, 'load_button'):
+                preview_frame.load_button.configure(text="✓ Załadowano")
+            if hasattr(preview_frame, 'clear_button'):
+                preview_frame.clear_button.configure(state="normal")
 
             # Generate and display thumbnail
             if hasattr(preview_frame, 'generate_and_display_thumbnail'):
-                preview_frame.generate_and_display_thumbnail()
+                print(f"Calling generate_and_display_thumbnail for {filename}")
+                try:
+                    preview_frame.generate_and_display_thumbnail()
+                    print(f"Thumbnail generation completed")
+
+                    # If this is the selected source, also update the main thumbnail preview
+                    if hasattr(preview_frame, 'radio_value') and preview_frame.radio_value == self.graphic_source_var.get():
+                        self.generate_and_update_thumbnails()
+                        print(f"Updated main thumbnail preview for selected source: {preview_frame.radio_value}")
+                except Exception as e:
+                    print(f"Error generating thumbnail: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"WARNING: preview_frame has no generate_and_display_thumbnail method")
+
+            print(f"Successfully loaded {filename} to preview frame")
 
             # Store reference to clean up later
             if not hasattr(self, '_temp_files'):
@@ -940,6 +1182,46 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
                 if hasattr(self, 'description_text'):
                     self.part_data['description'] = self.description_text.get("1.0", "end-1c")
 
+                # Physical parameters
+                if hasattr(self, 'width_entry') and self.width_entry.get():
+                    try:
+                        self.part_data['width_mm'] = float(self.width_entry.get())
+                    except ValueError:
+                        pass
+
+                if hasattr(self, 'height_entry') and self.height_entry.get():
+                    try:
+                        self.part_data['height_mm'] = float(self.height_entry.get())
+                    except ValueError:
+                        pass
+
+                if hasattr(self, 'length_entry') and self.length_entry.get():
+                    try:
+                        self.part_data['length_mm'] = float(self.length_entry.get())
+                    except ValueError:
+                        pass
+
+                if hasattr(self, 'weight_entry') and self.weight_entry.get():
+                    try:
+                        self.part_data['weight_kg'] = float(self.weight_entry.get())
+                    except ValueError:
+                        pass
+
+                if hasattr(self, 'surface_entry') and self.surface_entry.get():
+                    try:
+                        self.part_data['surface_area_m2'] = float(self.surface_entry.get())
+                    except ValueError:
+                        pass
+
+                if hasattr(self, 'prod_time_entry') and self.prod_time_entry.get():
+                    try:
+                        self.part_data['production_time_minutes'] = int(self.prod_time_entry.get())
+                    except ValueError:
+                        pass
+
+                if hasattr(self, 'machine_type_entry') and self.machine_type_entry.get():
+                    self.part_data['machine_type'] = self.machine_type_entry.get()
+
             # Get files from preview frames and convert to binary
             if hasattr(self.frame_2d, 'file_path') and self.frame_2d.file_path:
                 try:
@@ -989,6 +1271,44 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
         except Exception as e:
             messagebox.showerror("Błąd", f"Nie można zapisać danych: {e}")
 
+    def generate_and_update_thumbnails(self):
+        """Generate thumbnails and update UI immediately"""
+        source = self.graphic_source_var.get()
+
+        if not source:
+            print("No graphic source selected for thumbnail generation")
+            # Clear thumbnail display
+            self.thumbnail_label.configure(image="", text="Brak miniatury")
+            return
+
+        # Generate thumbnails
+        self.generate_thumbnails()
+
+        # Update thumbnail display immediately
+        if self.thumbnail_data:
+            self.display_thumbnail_in_preview(self.thumbnail_data)
+
+    def display_thumbnail_in_preview(self, thumbnail_data):
+        """Display thumbnail in the preview section"""
+        try:
+            from PIL import Image, ImageTk
+            img = Image.open(io.BytesIO(thumbnail_data))
+
+            # Scale to fit the preview label
+            img.thumbnail((200, 150), Image.Resampling.LANCZOS)
+
+            # Convert to PhotoImage
+            photo = ImageTk.PhotoImage(img)
+
+            # Update the label
+            self.thumbnail_label.configure(image=photo, text="")
+            self.thumbnail_label.image = photo  # Keep reference
+
+            print(f"Thumbnail displayed in preview section")
+        except Exception as e:
+            print(f"Error displaying thumbnail in preview: {e}")
+            self.thumbnail_label.configure(image="", text="Błąd wyświetlania")
+
     def generate_thumbnails(self):
         """Generate thumbnails from selected graphic source"""
         source = self.graphic_source_var.get()
@@ -1003,7 +1323,6 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
                 print("ThumbnailGenerator not available")
                 return
 
-            generator = ThumbnailGenerator()
             file_path = None
 
             # Get file path based on source
@@ -1020,19 +1339,22 @@ class EnhancedPartEditDialogV4(ctk.CTkToplevel):
             if file_path and os.path.exists(file_path):
                 print(f"Generating thumbnails from: {file_path}")
                 try:
-                    self.thumbnail_data = generator.generate_thumbnail(
-                        file_path, (100, 100), source
-                    )
+                    # Use proper static methods based on source type
+                    if source == "2D":
+                        self.thumbnail_data = ThumbnailGenerator.generate_from_2d_cad(file_path, (100, 100))
+                        self.preview_800_data = ThumbnailGenerator.generate_from_2d_cad(file_path, (800, 800))
+                        self.preview_4k_data = ThumbnailGenerator.generate_from_2d_cad(file_path, (3840, 2160))
+                    elif source == "3D":
+                        self.thumbnail_data = ThumbnailGenerator.generate_from_3d_cad(file_path, (100, 100))
+                        self.preview_800_data = ThumbnailGenerator.generate_from_3d_cad(file_path, (800, 800))
+                        self.preview_4k_data = ThumbnailGenerator.generate_from_3d_cad(file_path, (3840, 2160))
+                    elif source == "USER":
+                        self.thumbnail_data = ThumbnailGenerator.generate_from_image(file_path, (100, 100))
+                        self.preview_800_data = ThumbnailGenerator.generate_from_image(file_path, (800, 800))
+                        self.preview_4k_data = ThumbnailGenerator.generate_from_image(file_path, (3840, 2160))
+
                     print(f"Generated thumbnail_100: {len(self.thumbnail_data) if self.thumbnail_data else 0} bytes")
-
-                    self.preview_800_data = generator.generate_thumbnail(
-                        file_path, (800, 800), source
-                    )
                     print(f"Generated preview_800: {len(self.preview_800_data) if self.preview_800_data else 0} bytes")
-
-                    self.preview_4k_data = generator.generate_thumbnail(
-                        file_path, (3840, 2160), source
-                    )
                     print(f"Generated preview_4k: {len(self.preview_4k_data) if self.preview_4k_data else 0} bytes")
 
                 except Exception as e:

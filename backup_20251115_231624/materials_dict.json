@@ -1,0 +1,155 @@
+[
+  {
+    "id": "cce59f57-adb0-4745-ab55-8ac4c47ad1a9",
+    "name": "DC01",
+    "description": "Stal DC01 - blacha zmiękczana",
+    "category": "STAL",
+    "density": 7.85,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "23398805-6d86-49b4-8002-5d0a945e185c",
+    "name": "DC04",
+    "description": "Stal DC04 - blacha głębokotłoczna",
+    "category": "STAL",
+    "density": 7.85,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "0fbf24e5-ccb4-4c6a-b647-910cd781b70e",
+    "name": "S235JR",
+    "description": "Stal konstrukcyjna S235JR",
+    "category": "STAL",
+    "density": 7.85,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "7f9c3ab8-250a-4c43-88f2-59fd2b5024e1",
+    "name": "S355J2",
+    "description": "Stal konstrukcyjna S355J2",
+    "category": "STAL",
+    "density": 7.85,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "c531f906-95d3-469e-9ad3-e6a2141b5410",
+    "name": "1.4301 (304)",
+    "description": "Stal nierdzewna 304 (18/10)",
+    "category": "STAL_NIERDZEWNA",
+    "density": 7.93,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "a50c560b-417a-44b4-b31b-878569ba3555",
+    "name": "1.4404 (316L)",
+    "description": "Stal nierdzewna 316L",
+    "category": "STAL_NIERDZEWNA",
+    "density": 8.0,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "aedaf49a-36dc-46d1-8e2a-e1825198a219",
+    "name": "AW-5754",
+    "description": "Aluminium AW-5754 (AlMg3)",
+    "category": "ALUMINIUM",
+    "density": 2.67,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "1e299329-8cc8-4160-b144-f0298771b555",
+    "name": "AW-5083",
+    "description": "Aluminium AW-5083",
+    "category": "ALUMINIUM",
+    "density": 2.66,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "51969833-60ab-4166-9d47-efd2147b0e80",
+    "name": "AW-6082",
+    "description": "Aluminium AW-6082",
+    "category": "ALUMINIUM",
+    "density": 2.7,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "462e9384-8324-40a2-81e2-68cd19cfad5e",
+    "name": "CuZn37",
+    "description": "Mosiądz CuZn37 (MS63)",
+    "category": "MOSIADZ",
+    "density": 8.44,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "3ff9814d-e6b5-4ac9-b2fe-72abf2e47e30",
+    "name": "CW024A",
+    "description": "Miedź elektrolityczna",
+    "category": "MIEDZ",
+    "density": 8.96,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "02564246-e8a1-4f81-b2b9-f4eb00e037d0",
+    "name": "Hardox 400",
+    "description": "Stal Hardox 400 - odporna na ścieranie",
+    "category": "STAL_SPECJALNA",
+    "density": 7.85,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "fa3e412f-c35f-4c82-9f7c-f3f025da445d",
+    "name": "Hardox 500",
+    "description": "Stal Hardox 500 - odporna na ścieranie",
+    "category": "STAL_SPECJALNA",
+    "density": 7.85,
+    "is_active": true,
+    "created_at": "2025-10-16T06:53:56.885392+00:00"
+  },
+  {
+    "id": "c4e37800-76f7-4703-9b8b-bc86258a5c32",
+    "name": "Stal S235",
+    "description": "Stal konstrukcyjna",
+    "category": "STAL_NIERDDZEWNA",
+    "density": 7.85,
+    "is_active": true,
+    "created_at": "2025-11-11T19:31:25.338648+00:00"
+  },
+  {
+    "id": "8d72ff65-f3b8-4ee0-a251-c6a190e41507",
+    "name": "Stal 1.4301 (304)",
+    "description": "Stal nierdzewna",
+    "category": "STAL_NIERDDZEWNA",
+    "density": 7.9,
+    "is_active": true,
+    "created_at": "2025-11-11T19:31:25.338648+00:00"
+  },
+  {
+    "id": "ec046ce0-e8c1-4aff-af86-223db8577b71",
+    "name": "Aluminium 5754",
+    "description": "Stop aluminium",
+    "category": "ALUMINIUM",
+    "density": 2.67,
+    "is_active": true,
+    "created_at": "2025-11-11T19:31:25.338648+00:00"
+  },
+  {
+    "id": "767dca17-251e-42cb-80fb-b649b7ed3e22",
+    "name": "Mosiądz CuZn37",
+    "description": "Mosiądz",
+    "category": "METALE_KOLOROWE",
+    "density": 8.44,
+    "is_active": true,
+    "created_at": "2025-11-11T19:31:25.338648+00:00"
+  }
+]

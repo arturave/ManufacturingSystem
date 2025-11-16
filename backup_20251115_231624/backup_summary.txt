@@ -1,0 +1,11 @@
+Backup Date: 2025-11-15 23:16:26.347607
+Source: https://xcehmhxaoqfpehrfofbu.supabase.co
+
+Tables backed up:
+  customers: 3 records
+  materials_dict: 17 records
+  products_catalog: 2 records
+  orders: 1 records
+  order_parts: Error: {'message': "Could not find the table 'public.order_parts' in the schema cache", 'code': 'PGRST205', 'hint': "Perhaps you meant the table 'public.order_items'", 'details': None} records
+  quotes: Error: {'message': "Could not find the table 'public.quotes' in the schema cache", 'code': 'PGRST205', 'hint': "Perhaps you meant the table 'public.quotations'", 'details': None} records
+  quote_parts: Error: {'message': "Could not find the table 'public.quote_parts' in the schema cache", 'code': 'PGRST205', 'hint': "Perhaps you meant the table 'public.quote_counters'", 'details': None} records

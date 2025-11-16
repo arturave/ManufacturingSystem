@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cmd /c \"move test_*.py archiv\\2025-11-11\"\")"
+      "Bash(python test_product_update.py:*)",
+      "Bash(python:*)",
+      "Bash(nul)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(copy:*)",
+      "Bash(pip install:*)"
     ],
     "deny": [],
     "ask": []
