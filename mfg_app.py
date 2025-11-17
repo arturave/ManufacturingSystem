@@ -62,10 +62,21 @@ from customer_module_enhanced import (
 
 # Import attachments and WZ modules
 from attachments_gui_widgets import AttachmentsWidget
+from order_confirmation_dialog import OrderConfirmationDialog
 from wz_dialog import WZGeneratorDialog
+
+# Import settings modules
+from settings_manager import get_settings_manager, initialize_settings
+from settings_dialog import SettingsDialog
+
+# Import thumbnail loader
+from thumbnail_loader import get_thumbnail_loader
 
 # Load environment variables
 load_dotenv()
+
+# Initialize settings manager
+initialize_settings()
 
 # Configure CustomTkinter
 ctk.set_appearance_mode("dark")
@@ -328,8 +339,26 @@ class SupabaseManager:
     # Parts operations
     def get_parts(self, order_id: str) -> List[Dict]:
         try:
-            response = self.client.table('parts').select("*").eq('order_id', order_id).execute()
-            return response.data
+            # Pobierz części z powiązanym produktem dla uzyskania miniatur
+            response = self.client.table('parts').select(
+                "*",
+                "products_catalog(preview_800_url, thumbnail_100_url)"
+            ).eq('order_id', order_id).execute()
+
+            # Przetwórz dane aby dodać miniatury do części
+            parts = response.data
+            for part in parts:
+                # Jeśli część ma powiązany produkt, dodaj miniaturę
+                if part.get('products_catalog'):
+                    product = part['products_catalog']
+                    if product.get('preview_800_url'):
+                        part['preview_800_url'] = product['preview_800_url']
+                    if product.get('thumbnail_100_url'):
+                        part['thumbnail_100_url'] = product['thumbnail_100_url']
+                    # Usuń zagnieżdżony obiekt produktu po skopiowaniu danych
+                    del part['products_catalog']
+
+            return parts
         except Exception as e:
             print(f"Error getting parts: {e}")
             return []
@@ -890,29 +919,49 @@ class OrderDialog(ctk.CTkToplevel):
             command=self.delete_part
         ).pack(side="left", padx=5)
         
-        # Parts list
+        # Parts list with thumbnails
         from tkinter import ttk
-        
+
+        # Add checkbox for thumbnails
+        show_thumbnails_frame = ctk.CTkFrame(parts_frame)
+        show_thumbnails_frame.pack(fill="x", pady=(0, 5))
+
+        self.show_parts_thumbnails_var = tk.BooleanVar(value=True)
+        self.show_parts_thumbnails_check = ctk.CTkCheckBox(
+            show_thumbnails_frame,
+            text="Wyświetlaj miniatury",
+            variable=self.show_parts_thumbnails_var,
+            command=self.refresh_parts_display
+        )
+        self.show_parts_thumbnails_check.pack(side="left", padx=10)
+
         self.parts_tree = ttk.Treeview(
             parts_frame,
-            columns=('idx', 'name', 'material', 'thickness', 'qty'),
-            show='headings',
+            columns=('idx', 'name', 'material', 'thickness', 'qty', 'price'),
+            show='tree headings',  # Changed to show tree column for thumbnails
             height=8
         )
-        
+
+        self.parts_tree.heading('#0', text='')  # Thumbnail column
         self.parts_tree.heading('idx', text='Indeks')
         self.parts_tree.heading('name', text='Nazwa')
         self.parts_tree.heading('material', text='Materiał')
         self.parts_tree.heading('thickness', text='Grubość [mm]')
         self.parts_tree.heading('qty', text='Ilość')
-        
+        self.parts_tree.heading('price', text='Cena')
+
+        self.parts_tree.column('#0', width=50, stretch=False)  # Thumbnail column
         self.parts_tree.column('idx', width=100)
-        self.parts_tree.column('name', width=250)
-        self.parts_tree.column('material', width=150)
-        self.parts_tree.column('thickness', width=100)
-        self.parts_tree.column('qty', width=80)
-        
+        self.parts_tree.column('name', width=200)
+        self.parts_tree.column('material', width=120)
+        self.parts_tree.column('thickness', width=80)
+        self.parts_tree.column('qty', width=60)
+        self.parts_tree.column('price', width=80)
+
         self.parts_tree.pack(fill="both", expand=True, pady=5)
+
+        # Store thumbnails to prevent garbage collection
+        self.parts_thumbnails = []
 
         # Załączniki
         self.attachments_widget = AttachmentsWidget(
@@ -926,23 +975,43 @@ class OrderDialog(ctk.CTkToplevel):
         # Bottom buttons
         btn_frame = ctk.CTkFrame(main_frame)
         btn_frame.pack(fill="x", pady=10)
-        
+
         ctk.CTkButton(
             btn_frame,
             text="💾 Zapisz zamówienie",
             width=200,
             height=40,
             command=self.save_order,
-            font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(side="left", padx=20)
-        
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="green"
+        ).pack(side="left", padx=10)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="🖨️ Wydrukuj potwierdzenie",
+            width=180,
+            height=40,
+            command=self.print_confirmation,
+            fg_color="blue"
+        ).pack(side="left", padx=10)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="✉️ Wyślij potwierdzenie",
+            width=180,
+            height=40,
+            command=self.send_confirmation,
+            fg_color="purple"
+        ).pack(side="left", padx=10)
+
         ctk.CTkButton(
             btn_frame,
             text="Anuluj",
             width=150,
             height=40,
-            command=self.destroy
-        ).pack(side="right", padx=20)
+            command=self.destroy,
+            fg_color="gray"
+        ).pack(side="right", padx=10)
     
     def load_order_data(self):
         """Load existing order data"""
@@ -977,15 +1046,8 @@ class OrderDialog(ctk.CTkToplevel):
         
         # Load parts
         parts = self.db.get_parts(self.order_data['id'])
-        for part in parts:
-            self.parts_list.append(part)
-            self.parts_tree.insert('', 'end', values=(
-                part.get('idx_code', ''),
-                part['name'],
-                part.get('material', ''),
-                part.get('thickness_mm', ''),
-                part.get('qty', 1)
-            ))
+        self.parts_list = parts
+        self.refresh_parts_display()
     
     def add_part(self):
         """Add new part - opens product selector dialog"""
@@ -1006,19 +1068,83 @@ class OrderDialog(ctk.CTkToplevel):
         # Clear existing parts
         self.parts_list = selected_parts
 
+        # Refresh display with new parts
+        self.refresh_parts_display()
+
+        # Calculate and update total price
+        total_price = self._calculate_total_price()
+        self.price_entry.delete(0, 'end')
+        self.price_entry.insert(0, f"{total_price:.2f}")
+
+    def refresh_parts_display(self):
+        """Refresh parts tree display with optional thumbnails"""
         # Clear tree
         for item in self.parts_tree.get_children():
             self.parts_tree.delete(item)
 
-        # Add new parts to tree
+        # Clear thumbnails
+        self.parts_thumbnails = []
+
+        # Add parts to tree
         for part in self.parts_list:
-            self.parts_tree.insert('', 'end', values=(
-                part.get('idx_code', ''),
-                part.get('name', ''),
-                part.get('material', ''),
-                part.get('thickness_mm', ''),
-                part.get('qty', 1)
-            ))
+            # Get thumbnail if enabled
+            thumbnail = None
+            if self.show_parts_thumbnails_var.get():
+                thumbnail = self._get_part_thumbnail(part)
+                if thumbnail:
+                    self.parts_thumbnails.append(thumbnail)  # Keep reference
+
+            # Get quantity and unit price
+            qty = part.get('quantity', part.get('qty', 1))
+            unit_price = part.get('unit_price', 0)
+
+            # If no unit price, calculate from costs
+            if unit_price == 0:
+                unit_price = (
+                    part.get('material_laser_cost', 0) +
+                    part.get('bending_cost', 0) +
+                    part.get('additional_costs', 0)
+                )
+
+            # Insert item with thumbnail
+            self.parts_tree.insert('', 'end',
+                image=thumbnail if thumbnail else '',
+                values=(
+                    part.get('idx_code', ''),
+                    part.get('name', ''),
+                    part.get('material', ''),
+                    part.get('thickness_mm', ''),
+                    qty,
+                    f"{unit_price:.2f}"
+                )
+            )
+
+    def _calculate_total_price(self):
+        """Calculate total price from parts list"""
+        total = 0
+        for part in self.parts_list:
+            qty = part.get('quantity', part.get('qty', 1))
+            unit_price = part.get('unit_price', 0)
+
+            if unit_price == 0:
+                unit_price = (
+                    part.get('material_laser_cost', 0) +
+                    part.get('bending_cost', 0) +
+                    part.get('additional_costs', 0)
+                )
+
+            total += qty * unit_price
+        return total
+
+    def _get_part_thumbnail(self, part):
+        """Get thumbnail for part"""
+        try:
+            # Use global thumbnail loader
+            loader = get_thumbnail_loader()
+            return loader.get_product_thumbnail(part, size=(40, 40))
+        except Exception as e:
+            print(f"Error loading part thumbnail: {e}")
+            return None
 
     def edit_part(self):
         """Edit selected part"""
@@ -1152,6 +1278,38 @@ class OrderDialog(ctk.CTkToplevel):
             else:
                 messagebox.showerror("Błąd", "Nie udało się utworzyć zamówienia")
 
+    def print_confirmation(self):
+        """Print order confirmation"""
+        if not self.order_id and not self.order_data:
+            messagebox.showwarning("Uwaga", "Najpierw zapisz zamówienie")
+            return
+
+        # Open confirmation preview dialog
+        dialog = OrderConfirmationDialog(
+            self,
+            self.db,
+            self.order_data or {'id': self.order_id},
+            self.parts_list,
+            mode='print'
+        )
+        self.wait_window(dialog)
+
+    def send_confirmation(self):
+        """Send order confirmation via email"""
+        if not self.order_id and not self.order_data:
+            messagebox.showwarning("Uwaga", "Najpierw zapisz zamówienie")
+            return
+
+        # Open email sending dialog
+        dialog = OrderConfirmationDialog(
+            self,
+            self.db,
+            self.order_data or {'id': self.order_id},
+            self.parts_list,
+            mode='email'
+        )
+        self.wait_window(dialog)
+
 class PartEditDialog(ctk.CTkToplevel):
     """Dialog for adding/editing part"""
     
@@ -1262,21 +1420,31 @@ class MainApplication(ctk.CTk):
     
     def __init__(self):
         super().__init__()
-        
+
         self.title(APP_NAME)
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-        
+
+        # Initialize settings manager
+        self.settings_manager = get_settings_manager()
+        self.settings = self.settings_manager.settings
+
+        # Apply theme settings
+        if self.settings.theme_mode:
+            ctk.set_appearance_mode(self.settings.theme_mode)
+        if self.settings.color_theme:
+            ctk.set_default_color_theme(self.settings.color_theme)
+
         # Initialize database
         try:
             self.db = SupabaseManager()
         except Exception as e:
             messagebox.showerror("Błąd", f"Nie można połączyć z bazą danych:\n{e}")
             sys.exit(1)
-        
+
         self.setup_ui()
         self.load_orders()
         self.update_dashboard()
-        
+
         # Center window
         self.update_idletasks()
         x = (self.winfo_screenwidth() // 2) - (WINDOW_WIDTH // 2)
@@ -1314,7 +1482,26 @@ class MainApplication(ctk.CTk):
         """Create header with title and main buttons"""
         header = ctk.CTkFrame(self)
         header.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        
+
+        # Logo - dodaj logo producenta po lewej stronie
+        logo_frame = ctk.CTkFrame(header)
+        logo_frame.pack(side="left", padx=10)
+
+        # Wczytaj logo
+        logo_path = self.settings_manager.get_active_logo_path()
+        if logo_path and os.path.exists(logo_path):
+            try:
+                # Załaduj i przeskaluj logo
+                logo_img = Image.open(logo_path)
+                logo_img.thumbnail((80, 60), Image.Resampling.LANCZOS)
+                self.logo_photo = ImageTk.PhotoImage(logo_img)
+
+                # Wyświetl logo
+                logo_label = ctk.CTkLabel(logo_frame, image=self.logo_photo, text="")
+                logo_label.pack()
+            except Exception as e:
+                print(f"Nie można załadować logo: {e}")
+
         # Title
         title_label = ctk.CTkLabel(
             header,
@@ -1322,11 +1509,11 @@ class MainApplication(ctk.CTk):
             font=ctk.CTkFont(size=24, weight="bold")
         )
         title_label.pack(side="left", padx=20)
-        
+
         # Main buttons
         btn_frame = ctk.CTkFrame(header)
         btn_frame.pack(side="right", padx=10)
-        
+
         ctk.CTkButton(
             btn_frame,
             text="➕ Nowe zamówienie",
@@ -1352,7 +1539,7 @@ class MainApplication(ctk.CTk):
             height=35,
             command=self.manage_customers
         ).pack(side="left", padx=5)
-        
+
         ctk.CTkButton(
             btn_frame,
             text="📄 Raporty",
@@ -1360,13 +1547,23 @@ class MainApplication(ctk.CTk):
             height=35,
             command=self.show_reports
         ).pack(side="left", padx=5)
-        
+
         ctk.CTkButton(
             btn_frame,
             text="🔄 Odśwież",
             width=100,
             height=35,
             command=self.refresh_all
+        ).pack(side="left", padx=5)
+
+        # Przycisk ustawień
+        ctk.CTkButton(
+            btn_frame,
+            text="⚙️ Ustawienia",
+            width=110,
+            height=35,
+            command=self.open_settings,
+            fg_color="gray"
         ).pack(side="left", padx=5)
     
     def create_sidebar(self, parent):
@@ -1832,11 +2029,34 @@ class MainApplication(ctk.CTk):
         """Open customers management dialog"""
         dialog = CustomerDialog(self, self.db)
         self.wait_window(dialog)
-        
+
         # Refresh customer filter
         customers = ["Wszystkie"] + [c['name'] for c in self.db.get_customers()]
         self.customer_filter.configure(values=customers)
-    
+
+    def open_settings(self):
+        """Open settings dialog"""
+        dialog = SettingsDialog(self, callback=self.on_settings_changed)
+        self.wait_window(dialog)
+
+    def on_settings_changed(self):
+        """Callback when settings are changed"""
+        # Reload settings
+        self.settings = self.settings_manager.settings
+
+        # Update logo if changed
+        self.update_logo_display()
+
+        # Refresh UI if needed
+        if self.settings.list_show_thumbnails:
+            self.load_orders()
+
+    def update_logo_display(self):
+        """Update logo display in header"""
+        # This will be called when settings change
+        # The logo will be updated on next app restart
+        pass
+
     def manage_files(self):
         """Manage files for selected order"""
         selection = self.orders_tree.selection()

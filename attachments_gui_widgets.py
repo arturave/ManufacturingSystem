@@ -196,7 +196,7 @@ class AttachmentsWidget(ctk.CTkFrame):
             self.info_label.configure(text="Brak załączników")
 
     def add_files(self):
-        """Dodaje pliki jako załącznik"""
+        """Dodaje pliki jako załącznik z obsługą większej liczby formatów"""
         if not self.entity_id:
             messagebox.showwarning(
                 "Uwaga",
@@ -204,7 +204,7 @@ class AttachmentsWidget(ctk.CTkFrame):
             )
             return
 
-        # Dialog wyboru plików
+        # Dialog wyboru plików z rozszerzoną listą formatów
         file_paths = filedialog.askopenfilenames(
             title="Wybierz pliki do dodania",
             filetypes=[
@@ -212,16 +212,42 @@ class AttachmentsWidget(ctk.CTkFrame):
                 ("PDF", "*.pdf"),
                 ("Word", "*.doc;*.docx"),
                 ("Excel", "*.xls;*.xlsx"),
-                ("Obrazy", "*.png;*.jpg;*.jpeg;*.gif"),
-                ("CAD", "*.dxf;*.dwg;*.step;*.stp")
+                ("PowerPoint", "*.ppt;*.pptx"),
+                ("Obrazy", "*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.svg"),
+                ("CAD 2D", "*.dxf;*.dwg"),
+                ("CAD 3D", "*.step;*.stp;*.igs;*.iges"),
+                ("Tekst", "*.txt;*.csv"),
+                ("Archiwa", "*.zip;*.rar;*.7z")
             ]
         )
 
         if not file_paths:
             return
 
+        # Sprawdź rozmiar plików
+        total_size = sum(os.path.getsize(f) for f in file_paths)
+        max_size = 50 * 1024 * 1024  # 50MB
+
+        if total_size > max_size:
+            from attachments_manager import format_file_size
+            messagebox.showwarning(
+                "Przekroczony rozmiar",
+                f"Suma rozmiarów plików ({format_file_size(total_size)}) "
+                f"przekracza limit {format_file_size(max_size)}.\n\n"
+                f"Proszę wybrać mniej plików lub pliki o mniejszym rozmiarze."
+            )
+            return
+
         # Poproś o notatki (opcjonalne)
         notes = self.ask_notes()
+
+        # Pokaż informację o procesie uploadu dla dużych plików
+        if total_size > 5 * 1024 * 1024:  # Powyżej 5MB
+            messagebox.showinfo(
+                "Dodawanie plików",
+                f"Trwa dodawanie {len(file_paths)} plików.\n"
+                f"Może to potrwać kilka chwil dla dużych plików."
+            )
 
         # Dodaj pliki
         result = self.attachments_manager.add_files(
@@ -334,13 +360,42 @@ class AttachmentsWidget(ctk.CTkFrame):
 
     def _open_file(self, attachment_id: str, filename: str):
         """
-        Otwiera plik w domyślnej aplikacji
+        Otwiera plik w domyślnej aplikacji z sprawdzaniem dostępności
 
         Args:
             attachment_id: ID załącznika
             filename: Nazwa pliku do otwarcia
         """
         try:
+            # Sprawdź czy plik może być podglądany
+            can_preview = self.attachments_manager.can_preview_file(filename)
+
+            # Sprawdź czy system ma aplikację do otwarcia tego typu pliku
+            has_app = self.attachments_manager.has_default_application(filename)
+
+            if not can_preview:
+                # Plik nie może być podglądany
+                response = messagebox.askyesno(
+                    "Brak podglądu",
+                    f"Plik '{filename}' nie może być podglądany.\n\n"
+                    f"Czy chcesz pobrać plik do folderu tymczasowego?"
+                )
+                if response:
+                    self._download_single_file(attachment_id, filename)
+                return
+
+            if not has_app:
+                # System nie ma domyślnej aplikacji
+                ext = os.path.splitext(filename)[1]
+                response = messagebox.askyesno(
+                    "Brak aplikacji",
+                    f"System nie ma domyślnej aplikacji do otwierania plików typu {ext}.\n\n"
+                    f"Czy chcesz mimo to spróbować otworzyć plik?\n"
+                    f"(Może być konieczne wybranie aplikacji ręcznie)"
+                )
+                if not response:
+                    return
+
             # Wyodrębnij plik
             file_data = self.attachments_manager.extract_file(attachment_id, filename)
             if not file_data:

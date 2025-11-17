@@ -1,0 +1,42 @@
+{
+  "company_name": "Manufacturing System",
+  "company_address": "",
+  "company_phone": "",
+  "company_email": "",
+  "company_nip": "",
+  "company_regon": "",
+  "manufacturer_logo_path": "C:\\Users\\artur\\source\\repos\\arturave\\ManufacturingSystem\\settings\\logos\\manufacturer_logo.jpg",
+  "user_logo_path": "C:\\Users\\artur\\source\\repos\\arturave\\ManufacturingSystem\\settings\\logos\\user_logo.jpg",
+  "use_user_logo": true,
+  "report_include_thumbnails": true,
+  "report_thumbnail_size": [
+    60,
+    40
+  ],
+  "report_include_details": true,
+  "report_language": "pl",
+  "pdf_orientation": "portrait",
+  "pdf_page_size": "A4",
+  "pdf_include_watermark": false,
+  "pdf_watermark_text": "DRAFT",
+  "email_smtp_server": "",
+  "email_smtp_port": 587,
+  "email_smtp_user": "",
+  "email_from_address": "",
+  "email_signature": "",
+  "list_show_thumbnails": true,
+  "list_thumbnail_size": [
+    50,
+    50
+  ],
+  "theme_mode": "dark",
+  "color_theme": "blue",
+  "export_format": "xlsx",
+  "export_include_attachments": true,
+  "export_compress_images": true,
+  "export_image_quality": 85,
+  "auto_save_interval": 300,
+  "backup_enabled": true,
+  "backup_retention_days": 30,
+  "log_level": "INFO"
+}
