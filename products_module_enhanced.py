@@ -863,10 +863,10 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
                     # Update UI in main thread
                     self.after(0, lambda: self._update_thumbnail(label, ctk_image, cache_key))
                 else:
-                    self.after(0, lambda: label.configure(text="📦"))
+                    self.after(0, lambda: self._safe_label_update(label, "📦"))
 
             except:
-                self.after(0, lambda: label.configure(text="📦"))
+                self.after(0, lambda: self._safe_label_update(label, "📦"))
             finally:
                 self.thumbnail_loading.discard(product_id)
 
@@ -877,8 +877,23 @@ class EnhancedProductsWindow(ctk.CTkToplevel):
 
     def _update_thumbnail(self, label, image, cache_key):
         """Update thumbnail in UI thread"""
-        self.thumbnail_cache[cache_key] = image
-        label.configure(image=image, text="")
+        try:
+            # Check if label widget still exists
+            if label.winfo_exists():
+                self.thumbnail_cache[cache_key] = image
+                label.configure(image=image, text="")
+        except Exception:
+            # Widget was destroyed, ignore
+            pass
+
+    def _safe_label_update(self, label, text):
+        """Safely update label text"""
+        try:
+            if label.winfo_exists():
+                label.configure(text=text)
+        except Exception:
+            # Widget was destroyed, ignore
+            pass
 
     def calculate_total_cost(self, product):
         """Calculate total cost for a product"""
